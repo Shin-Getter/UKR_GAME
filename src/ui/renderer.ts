@@ -276,9 +276,12 @@ export class MapRenderer {
         }
       }
       ctx.lineCap = "round";
-      ctx.strokeStyle = ROAD_COLOR.track;
-      ctx.lineWidth = Math.max(1.25, 16 * s);
-      ctx.stroke(track);
+      // Field tracks are dense on real maps: only draw them once zoomed in.
+      if (HEX_FLAT_TO_FLAT_M * s >= 7) {
+        ctx.strokeStyle = ROAD_COLOR.track;
+        ctx.lineWidth = Math.max(1.25, 16 * s);
+        ctx.stroke(track);
+      }
       const core = Math.max(1.5, 26 * s);
       ctx.strokeStyle = ROAD_COLOR.pavedCasing;
       ctx.lineWidth = core + Math.max(2, 12 * s);

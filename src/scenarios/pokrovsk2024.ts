@@ -3,7 +3,7 @@
  * 42 x 24 km area from Pokrovsk and Myrnohrad east to Ocheretyne.
  *
  * The line of contact is ILLUSTRATIVE: an approximate north-south line east
- * of Selydove and Myrnohrad, roughly as publicly reported in early autumn
+ * of Selydove and Myrnohrad, roughly as publicly reported in late summer
  * 2024. It is not sourced and not a record of real positions. Forces and
  * defences are generic placeholders (see design doc: past periods only,
  * invented defences, open-source OOB only where available).
@@ -17,7 +17,7 @@ import { buildForces } from "./forces";
 export const POKROVSK_2024_ID = "pokrovsk-2024";
 
 export const POKROVSK_FRONT_NOTE =
-  "Line of contact is illustrative (approximate, early autumn 2024), not sourced. Forces are generic placeholders.";
+  "Line of contact is illustrative (approximate, late summer 2024), not sourced. Forces are generic placeholders.";
 
 /** Column of the illustrative line of contact at a few rows; interpolated between. */
 const FRONT_KNOTS: [row: number, col: number][] = [

@@ -130,8 +130,12 @@ interface OsmEl {
  * the Overpass API is unreachable from the build machine. See data/osm/README.md.
  */
 function readLocalOsm(): OsmEl[] | null {
-  const files = [`data/osm/${def.id}-features.json`, `data/osm/${def.id}-buildings.json`];
-  if (!files.every((f) => existsSync(f))) return null;
+  const required = `data/osm/${def.id}-features.json`;
+  const optional = `data/osm/${def.id}-buildings.json`;
+  if (!existsSync(required)) return null;
+  const files = [required];
+  if (existsSync(optional)) files.push(optional);
+  else console.warn(`warning: ${optional} missing: no building counts or place names (land use only)`);
   const els = files.flatMap((f) => (JSON.parse(readFileSync(f, "utf8")) as { elements: OsmEl[] }).elements);
   console.log(`osm: ${els.length} elements from ${files.join(" + ")}`);
   return els;
@@ -318,7 +322,10 @@ async function importFeatures(): Promise<Place[]> {
   const places: Place[] = [];
 
   const PAVED = new Set(["motorway", "trunk", "primary", "secondary", "tertiary"]);
-  const TRACK = new Set(["unclassified", "residential", "track"]);
+  // Residential streets are left out: inside settlements the built-up terrain
+  // type already sets movement, and every street becoming a "road" turns towns
+  // into a solid mesh of road edges.
+  const TRACK = new Set(["unclassified", "track"]);
   const BIG = new Set(["apartments", "industrial", "commercial", "retail", "office", "warehouse", "school", "hospital", "public", "university", "civic"]);
 
   const layerOf = (t: Record<string, string>): keyof typeof cov | null => {
