@@ -219,12 +219,14 @@ export class MapRenderer {
           const a = offsetToAxial({ col, row });
           const ca = hexToWorld(a);
           const [ax, ay] = toScreen(ca.x, ca.y);
-          for (const d of [DIRECTIONS[0]!, DIRECTIONS[4]!, DIRECTIONS[5]!]) {
+          // Directions 0, 4, 5 (E, SW, SE) draw each connection once.
+          for (const dir of [0, 4, 5]) {
+            if ((map.roadEdges[i]! & (1 << dir)) === 0) continue;
+            const d = DIRECTIONS[dir]!;
             const b = { q: a.q + d.q, r: a.r + d.r };
             const j = map.indexOfAxial(b);
             if (j < 0) continue;
             const other = map.road[j]!;
-            if (other === RoadClass.None) continue;
             const cb = hexToWorld(b);
             const [bx, by] = toScreen(cb.x, cb.y);
             const p = Math.min(cls, other) === RoadClass.Paved ? paved : track;
@@ -235,10 +237,14 @@ export class MapRenderer {
       }
       ctx.lineCap = "round";
       ctx.strokeStyle = ROAD_COLOR.track;
-      ctx.lineWidth = Math.max(1, 18 * s);
+      ctx.lineWidth = Math.max(1.25, 16 * s);
       ctx.stroke(track);
+      const core = Math.max(1.5, 26 * s);
+      ctx.strokeStyle = ROAD_COLOR.pavedCasing;
+      ctx.lineWidth = core + Math.max(2, 12 * s);
+      ctx.stroke(paved);
       ctx.strokeStyle = ROAD_COLOR.paved;
-      ctx.lineWidth = Math.max(1.5, 30 * s);
+      ctx.lineWidth = core;
       ctx.stroke(paved);
     }
 
@@ -277,6 +283,10 @@ export class MapRenderer {
         else ctx.lineTo(px, py);
       }
       ctx.closePath();
+      // Dark outer ring + light inner ring reads on any terrain colour.
+      ctx.strokeStyle = "#000000";
+      ctx.lineWidth = 4;
+      ctx.stroke();
       ctx.strokeStyle = "#ffffff";
       ctx.lineWidth = 2;
       ctx.stroke();

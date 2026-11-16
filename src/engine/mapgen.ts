@@ -7,7 +7,7 @@
  * OpenStreetMap data (slice 3). It is fully deterministic for a given seed.
  */
 import { Terrain } from "../data/terrain";
-import { type Axial, hexDistance, hexLine, hexToWorld, offsetToAxial } from "./hex";
+import { type Axial, DIRECTIONS, hexDistance, hexLine, hexToWorld, offsetToAxial } from "./hex";
 import { HexMap, RoadClass } from "./map";
 import { hash2, Rng } from "./rng";
 
@@ -174,9 +174,19 @@ export function generateSector(seed: number, options: SectorOptions = {}): HexMa
   // 7. Roads: tracks link settlements (minimum spanning tree), a paved road runs
   //    north-south through the town, and a paved lateral road runs behind the river.
   const markRoad = (a: Axial, b: Axial, cls: RoadClass) => {
-    for (const h of hexLine(a, b)) {
+    const line = hexLine(a, b);
+    for (let k = 0; k < line.length; k++) {
+      const h = line[k]!;
       const i = map.indexOfAxial(h);
-      if (i >= 0 && map.road[i]! < cls) map.road[i] = cls;
+      if (i < 0) continue;
+      if (map.road[i]! < cls) map.road[i] = cls;
+      const next = line[k + 1];
+      if (!next) continue;
+      const j = map.indexOfAxial(next);
+      if (j < 0) continue;
+      const d = DIRECTIONS.findIndex((v) => v.q === next.q - h.q && v.r === next.r - h.r);
+      map.roadEdges[i]! |= 1 << d;
+      map.roadEdges[j]! |= 1 << ((d + 3) % 6);
     }
   };
   const inTree = [0];

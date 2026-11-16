@@ -68,7 +68,7 @@ $("legend").innerHTML =
   Object.values(TERRAIN)
     .map((d) => `<li><span class="swatch" style="background:${shade(TERRAIN_COLOR[d.id], 1)}"></span>${d.name}</li>`)
     .join("") +
-  `<li><span class="line" style="background:${ROAD_COLOR.paved}"></span>Paved road</li>` +
+  `<li><span class="line" style="background:${ROAD_COLOR.paved};box-shadow:0 0 0 2px ${ROAD_COLOR.pavedCasing}"></span>Paved road</li>` +
   `<li><span class="line" style="background:${ROAD_COLOR.track}"></span>Track</li>`;
 
 $("regen").addEventListener("click", () => regenerate(Number(seedInput.value) >>> 0));

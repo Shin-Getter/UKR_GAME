@@ -44,7 +44,19 @@ describe("generateSector", () => {
     }
   });
 
-  it("connects every road hex into one network", () => {
+  it("stores road connections symmetrically", () => {
+    for (let i = 0; i < map.size; i++) {
+      const ns = neighbors(map.axialOfIndex(i));
+      for (let d = 0; d < 6; d++) {
+        if ((map.roadEdges[i]! & (1 << d)) === 0) continue;
+        const j = map.indexOfAxial(ns[d]!);
+        expect(j).toBeGreaterThanOrEqual(0);
+        expect(map.roadEdges[j]! & (1 << ((d + 3) % 6))).not.toBe(0);
+      }
+    }
+  });
+
+  it("connects every road hex into one network along road edges", () => {
     const roadHexes: number[] = [];
     for (let i = 0; i < map.size; i++) if (map.road[i] !== RoadClass.None) roadHexes.push(i);
     expect(roadHexes.length).toBeGreaterThan(100);
@@ -52,8 +64,10 @@ describe("generateSector", () => {
     const queue = [roadHexes[0]!];
     while (queue.length > 0) {
       const i = queue.pop()!;
-      for (const n of neighbors(map.axialOfIndex(i))) {
-        const j = map.indexOfAxial(n);
+      const ns = neighbors(map.axialOfIndex(i));
+      for (let d = 0; d < 6; d++) {
+        if ((map.roadEdges[i]! & (1 << d)) === 0) continue;
+        const j = map.indexOfAxial(ns[d]!);
         if (j >= 0 && map.road[j] !== RoadClass.None && !seen.has(j)) {
           seen.add(j);
           queue.push(j);

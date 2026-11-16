@@ -10,7 +10,12 @@ export const TERRAIN_COLOR: Record<Terrain, [number, number, number]> = {
   [Terrain.Water]: [74, 127, 168],
 };
 
-export const ROAD_COLOR = { track: "#e2d9bc", paved: "#f5f2ea" };
+/**
+ * Roads are drawn by luminance contrast, not hue, so they stay readable on the
+ * pale field colour and under warm screen tints (f.lux, Night Shift): paved
+ * roads get a near-black casing around a light core, tracks are dark brown.
+ */
+export const ROAD_COLOR = { track: "#4a3826", pavedCasing: "#1c1c1c", paved: "#efece4" };
 
 /** Number of elevation shading bands. */
 export const RELIEF_BANDS = 8;

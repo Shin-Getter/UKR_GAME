@@ -18,6 +18,11 @@ export class HexMap {
   /** Ground elevation in metres. */
   readonly elevation: Int16Array;
   readonly road: Uint8Array;
+  /**
+   * Road connectivity: bit d set means a road leaves this hex towards
+   * neighbour DIRECTIONS[d]. Stored on both hexes of each connection.
+   */
+  readonly roadEdges: Uint8Array;
 
   constructor(
     readonly cols: number,
@@ -28,6 +33,7 @@ export class HexMap {
     this.terrain = new Uint8Array(n);
     this.elevation = new Int16Array(n);
     this.road = new Uint8Array(n);
+    this.roadEdges = new Uint8Array(n);
   }
 
   get size(): number {
@@ -73,6 +79,7 @@ export class HexMap {
       .bytes(this.terrain)
       .bytes(this.elevation)
       .bytes(this.road)
+      .bytes(this.roadEdges)
       .digest();
   }
 }

@@ -1,3 +1,3 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`generateSector > matches the golden hash (update deliberately when the generator changes) 1`] = `"d1b9d8a8"`;
+exports[`generateSector > matches the golden hash (update deliberately when the generator changes) 1`] = `"60f05b2e"`;
