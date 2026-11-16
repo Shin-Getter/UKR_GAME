@@ -11,6 +11,7 @@ import {
 } from "../engine/hex";
 import { type HexMap, RoadClass } from "../engine/map";
 import type { Element, SideId } from "../engine/state";
+import type { Place } from "../engine/mapio";
 import { ELEMENT_TYPES } from "../data/elements";
 import { RELIEF_BANDS, ROAD_COLOR, shade, TERRAIN_COLOR } from "./palette";
 
@@ -51,6 +52,9 @@ export class MapRenderer {
     selectedId: null,
     pendingTargets: new Map(),
   };
+  /** Place names to label, and the (illustrative) line of contact to draw. */
+  places: Place[] = [];
+  frontHexes: number[] = [];
   private markerRects: { id: string; x: number; y: number; w: number; h: number }[] = [];
 
   constructor(
@@ -328,8 +332,52 @@ export class MapRenderer {
       ctx.stroke();
     }
 
+    this.drawFront(ctx, toScreen);
     this.drawForces(ctx, toScreen);
+    this.drawPlaces(ctx, toScreen);
     this.drawScaleBar(ctx, h);
+  }
+
+  private drawFront(ctx: CanvasRenderingContext2D, toScreen: (x: number, y: number) => [number, number]): void {
+    if (this.frontHexes.length < 2) return;
+    const path = new Path2D();
+    this.frontHexes.forEach((i, k) => {
+      const c = hexToWorld(this.map.axialOfIndex(i));
+      const [x, y] = toScreen(c.x, c.y);
+      if (k === 0) path.moveTo(x, y);
+      else path.lineTo(x, y);
+    });
+    ctx.lineJoin = "round";
+    ctx.setLineDash([]);
+    ctx.strokeStyle = "rgba(0,0,0,0.55)";
+    ctx.lineWidth = 6;
+    ctx.stroke(path);
+    ctx.strokeStyle = "#ff8c1a";
+    ctx.lineWidth = 3;
+    ctx.setLineDash([10, 6]);
+    ctx.stroke(path);
+    ctx.setLineDash([]);
+  }
+
+  private drawPlaces(ctx: CanvasRenderingContext2D, toScreen: (x: number, y: number) => [number, number]): void {
+    if (this.places.length === 0) return;
+    const hexPx = HEX_FLAT_TO_FLAT_M * this.scale;
+    const minHexPx: Record<Place["kind"], number> = { city: 0, town: 0, village: 3, hamlet: 12 };
+    const size: Record<Place["kind"], number> = { city: 15, town: 13, village: 11.5, hamlet: 10.5 };
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineJoin = "round";
+    for (const p of this.places) {
+      if (hexPx < minHexPx[p.kind]) continue;
+      const c = hexToWorld(offsetToAxial({ col: p.col, row: p.row }));
+      const [x, y] = toScreen(c.x, c.y);
+      ctx.font = `${p.kind === "city" || p.kind === "town" ? 700 : 600} ${size[p.kind]}px system-ui, sans-serif`;
+      ctx.strokeStyle = "rgba(0,0,0,0.8)";
+      ctx.lineWidth = 3.5;
+      ctx.strokeText(p.name, x, y);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillText(p.name, x, y);
+    }
   }
 
   /** Element id under a screen point, topmost first. */

@@ -8,8 +8,7 @@ import type { Order } from "../engine/orders";
 import { runReplay, toReplay } from "../engine/replay";
 import { resolveCycle } from "../engine/sim";
 import { type GameState, hashState, SIDE_NAMES, SIDES, type SideId } from "../engine/state";
-import { SCENARIOS } from "../scenarios";
-import { buildTestSector } from "../scenarios/testSector";
+import { SCENARIO_LIST, SCENARIOS, type ScenarioInfo } from "../scenarios";
 import { ROAD_COLOR, shade, TERRAIN_COLOR } from "./palette";
 import { MapRenderer, SIDE_COLOR } from "./renderer";
 
@@ -17,11 +16,16 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 
 const seedInput = $<HTMLInputElement>("seed");
+const scenarioSelect = $<HTMLSelectElement>("scenario");
 const params = new URLSearchParams(location.search);
 const initialSeed = Number(params.get("seed") ?? 1) >>> 0;
 seedInput.value = String(initialSeed);
+scenarioSelect.innerHTML = SCENARIO_LIST.map((s) => `<option value="${s.id}">${s.name}</option>`).join("");
+const scenarioOf = (id: string): ScenarioInfo => SCENARIO_LIST.find((s) => s.id === id) ?? SCENARIO_LIST[0]!;
+let scenario = scenarioOf(params.get("scenario") ?? SCENARIO_LIST[0]!.id);
+scenarioSelect.value = scenario.id;
 
-let state: GameState = buildTestSector(initialSeed);
+let state: GameState = scenario.build(initialSeed);
 /** Orders being drafted in the UI, per side, keyed by element id. */
 let drafts: Record<SideId, Map<string, Order>> = { ua: new Map(), ru: new Map() };
 let selectedId: string | null = null;
@@ -83,17 +87,35 @@ function refresh(): void {
     .join("") || "<li>No events yet.</li>";
 }
 
+function applyScenarioView(): void {
+  renderer.places = scenario.places?.() ?? [];
+  renderer.frontHexes = scenario.frontHexes?.(state) ?? [];
+  $("scenario-note").textContent = scenario.note ?? "";
+  $("seed-help").textContent = scenario.seedChangesMap
+    ? "The seed generates the map and force placement. A new seed starts a new game."
+    : "Real terrain: the seed only changes force placement. A new seed starts a new game.";
+  $("attribution").textContent = (scenario.attribution?.() ?? []).join(" · ");
+}
+
 function newGame(seed: number): void {
-  state = buildTestSector(seed);
+  state = scenario.build(seed);
   drafts = { ua: new Map(), ru: new Map() };
   selectedId = null;
   renderer.setMap(state.map);
+  applyScenarioView();
+  renderer.fit(true);
   showStats();
   refresh();
   const url = new URL(location.href);
+  url.searchParams.set("scenario", scenario.id);
   url.searchParams.set("seed", String(seed));
   history.replaceState(null, "", url);
 }
+
+scenarioSelect.addEventListener("change", () => {
+  scenario = scenarioOf(scenarioSelect.value);
+  newGame(Number(seedInput.value) >>> 0);
+});
 
 function showStats(): void {
   const map = state.map;
@@ -106,6 +128,7 @@ function showStats(): void {
     <dt>Hexes</dt><dd>${map.cols} × ${map.rows} = ${map.size.toLocaleString()}</dd>
     <dt>Fields</dt><dd>${pct(Terrain.Open)}</dd>
     <dt>Treelines</dt><dd>${pct(Terrain.Treeline)}</dd>
+    <dt>Built-up</dt><dd>${pct(Terrain.Village)} village · ${pct(Terrain.Urban)} urban</dd>
     <dt>Elements</dt><dd>UA ${per("ua")} · RU ${per("ru")}</dd>
     <dt>State hash</dt><dd><code>${hashState(state)}</code></dd>`;
 }
@@ -194,6 +217,9 @@ $<HTMLInputElement>("load-replay").addEventListener("change", async (e) => {
   try {
     const loaded = runReplay(JSON.parse(await file.text()), SCENARIOS);
     state = loaded;
+    scenario = scenarioOf(state.scenarioId);
+    scenarioSelect.value = scenario.id;
+    applyScenarioView();
     drafts = { ua: new Map(), ru: new Map() };
     selectedId = null;
     seedInput.value = String(state.seed);
@@ -209,6 +235,7 @@ $<HTMLInputElement>("load-replay").addEventListener("change", async (e) => {
 
 $("legend").innerHTML =
   `<li><span class="swatch" style="background:${SIDE_COLOR.ua}"></span>Ukraine unit</li>` +
+  `<li><span class="front"></span>Line of contact (illustrative)</li>` +
   `<li><span class="swatch" style="background:${SIDE_COLOR.ru}"></span>Russia unit</li>` +
   Object.values(TERRAIN)
     .map((d) => `<li><span class="swatch" style="background:${shade(TERRAIN_COLOR[d.id], 1)}"></span>${d.name}</li>`)

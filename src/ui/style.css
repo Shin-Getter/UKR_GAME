@@ -51,3 +51,7 @@ button[aria-pressed="true"] { background: #6b5a14; border-color: #ffd23f; }
 .hover.small { min-height: 0; }
 #selected { min-height: 0; }
 #map.move-mode { cursor: crosshair; }
+select { flex: 1; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px 6px; font: inherit; }
+.note { color: #ffb36b; }
+.attribution { font-size: 11px; margin-top: 8px; }
+#legend .front { width: 14px; height: 0; border-top: 3px dashed #ff8c1a; }

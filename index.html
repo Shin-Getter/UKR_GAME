@@ -10,7 +10,7 @@
     <div id="app">
       <canvas id="map" aria-label="Sector map"></canvas>
       <aside id="panel">
-        <h1>Kill Zone <span class="version">slice 2</span></h1>
+        <h1>Kill Zone <span class="version">slice 3</span></h1>
         <p class="sub">Debug view: both sides visible. Click a unit, then right-click a hex to order a move (or use Move mode on touch screens). Run a day to resolve.</p>
 
         <section>
@@ -42,9 +42,11 @@
         </section>
 
         <section>
-          <h2>Sector</h2>
+          <h2>Scenario</h2>
+          <label class="row"><select id="scenario"></select></label>
           <label class="row">Seed <input id="seed" type="number" value="1" /></label>
-          <p class="sub">Generating a new sector starts a new game.</p>
+          <p class="sub" id="seed-help"></p>
+          <p class="sub note" id="scenario-note"></p>
           <div class="row buttons">
             <button id="regen">Generate</button>
             <button id="random">Random seed</button>
@@ -72,6 +74,7 @@
         <section>
           <h2>Legend</h2>
           <ul id="legend"></ul>
+          <p class="sub attribution" id="attribution"></p>
         </section>
       </aside>
     </div>
