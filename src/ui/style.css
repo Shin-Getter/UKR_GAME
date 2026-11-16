@@ -55,3 +55,6 @@ select { flex: 1; background: var(--bg); color: var(--text); border: 1px solid v
 .note { color: #ffb36b; }
 .attribution { font-size: 11px; margin-top: 8px; }
 #legend .front { width: 14px; height: 0; border-top: 3px dashed #ff8c1a; }
+#legend .ring { width: 12px; height: 12px; border-radius: 50%; border: 2px dashed currentColor; }
+#legend .heat { width: 40px; height: 10px; border-radius: 2px; background: linear-gradient(90deg, rgba(255,40,40,0.1), rgba(255,40,40,0.7)); }
+.events .contact { color: #e8d48a; }

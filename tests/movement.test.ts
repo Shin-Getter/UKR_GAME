@@ -9,7 +9,7 @@ import type { Element, SimEvent } from "../src/engine/state";
 import { bareState, openMap } from "./helpers";
 
 function squadAt(hex: number): Element {
-  return { id: "e1", typeId: "infantrySquad", side: "ua", unitId: "u", hex, personnel: 9, move: null };
+  return { id: "e1", typeId: "infantrySquad", side: "ua", unitId: "u", hex, personnel: 9, move: null, patrol: null };
 }
 
 describe("movement", () => {

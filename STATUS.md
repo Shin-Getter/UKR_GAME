@@ -12,15 +12,16 @@ Handoff file between work sessions. Update it at the end of every slice.
 
 - **Slice 3: real terrain, Pokrovsk 2024.** `scripts/import-sector.ts` builds a map file from AWS Terrain Tiles elevation + OpenStreetMap (woods, tree rows, water, wetlands, land use, roads, building counts, place names; Ukrainian names romanised with the 2010 national system when no English name exists). Map files (`src/data/maps/*.json`) are base64 typed arrays + metadata (`src/engine/mapio.ts`). Pokrovsk approaches sector: 42 x 24 km, 168 x 111 hexes, Pokrovsk/Myrnohrad to Ocheretyne. Scenario with an **illustrative, unsourced** north-south line of contact (Russia east, Ukraine west) and the shared generic force builder (`src/scenarios/forces.ts`). UI: scenario picker (Pokrovsk is the default), place labels with collision avoidance, front line, ODbL attribution.
 
+- **Slice 4: sensing and fog of war.** Deterministic `dexp` (`src/engine/dmath.ts`). Signatures per element type and channel (visual, thermal, RF, acoustic) modified by movement, phase of day and terrain concealment (`src/data/sensing.ts`). Sensors: observation (needs line of sight; terrain obstacle heights added), recon drones (patrol area up to 8 km from the crew, grounded while the crew moves), RF direction finding (Suspected only). Per-tick detection rolls; per-side tracks with a quality ladder (Suspected → Detected → Identified → Targetable), decay, and a Targetable fix lost when the target moves. `observe()` returns side-local track reports without the real element id. Patrol orders for drone crews. Coverage heatmap (chance to locate a reference target per hour). UI: viewpoint (Ukraine / Russia with fog of war, or god view), coverage overlay, contact markers by quality, patrol rings, contact events, hover shows contacts and coverage.
+
 ## Next
 
-- **Slice 4: sensing.** Signatures per element (visual, thermal, RF, acoustic), sensors (recon drones, observation posts), per-tick detection probability, tracks with quality ladder and decay, coverage heatmap in the UI, and fog of war in `observe()`. Needs deterministic `exp` (CLAUDE.md engine rules).
+- **Slice 5: strikes and ammunition.** Strike drone crews (FPV, bomber), mortars and guns; kill-chain latency and target allocation from Targetable/Detected tracks; reach/hit/effect resolution against protection and cover; casualties and equipment damage; ammunition stocks; the "squad crosses a field under drones" micro-test.
 
 ## Planned slices
 
 | Slice | Ends with |
 | --- | --- |
-| 5 | Strikes and ammunition; "squad crosses a field under drones" micro-test |
 | 6 | Movement modes, control gradient, assault and consolidation |
 | 7 | Orders UI and policy editor; hot-seat WEGO play |
 | 8 | After-action causal chains; first two-player playtest |
@@ -29,7 +30,8 @@ Handoff file between work sessions. Update it at the end of every slice.
 
 - Terrain parameters in `src/data/terrain.ts` are placeholders (confidence: guess).
 - Treelines are hex terrain for now; the design doc wants them as hex-edge features eventually.
-- The UI shows both sides (debug view). Fog of war in the UI arrives with sensing (slice 4) and hot-seat turns (slice 7).
+- Hot-seat turn handover (hiding one side's screen while the other plans) arrives in slice 7; for now the viewpoint selector is honour-system.
+- Sensing has no weather yet, no strike-drone incidental detection, no counter-battery radar, and no posture (dug in / concealed) modifiers; those arrive with strikes (slice 5) and movement modes (slice 6).
 - Overpass API is unreachable from Claude cloud sessions (connection reset). OSM data is exported manually from overpass-turbo.eu into `data/osm/` (see its README); the import script reads those files and caches elevation tiles in `.cache/`.
 - OSM building coverage around Pokrovsk is partial (~10k buildings), so built-up hexes also come from residential/industrial land use.
 - Rivers make whole hexes water (impassable except at road bridges), even small ones; they should become hex-edge obstacles with a crossing cost. Spoil heaps are not a terrain type yet.

@@ -11,7 +11,7 @@
 import mapFile from "../data/maps/pokrovsk-2024.json";
 import { decodeMap, type MapFile, type MapMeta } from "../engine/mapio";
 import { Rng } from "../engine/rng";
-import type { GameState } from "../engine/state";
+import { type GameState, newGameState } from "../engine/state";
 import { buildForces } from "./forces";
 
 export const POKROVSK_2024_ID = "pokrovsk-2024";
@@ -54,19 +54,7 @@ export function buildPokrovsk2024(seed: number): GameState {
     { orientation: "ns", line, rear: { ru: 1, ua: -1 }, laneFrom: 0.1, laneTo: 0.9 },
     rng,
   );
-  return {
-    scenarioId: POKROVSK_2024_ID,
-    seed,
-    map,
-    startHour: 6,
-    tick: 0,
-    cycle: 0,
-    units,
-    elements,
-    pending: { ua: null, ru: null },
-    history: [],
-    lastEvents: [],
-  };
+  return newGameState({ scenarioId: POKROVSK_2024_ID, seed, map, startHour: 6, units, elements });
 }
 
 /** The illustrative front as hex indices, for drawing. */

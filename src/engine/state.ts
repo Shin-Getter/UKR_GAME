@@ -1,4 +1,5 @@
 import type { ElementTypeId } from "../data/elements";
+import type { TrackQuality } from "../data/sensing";
 import { StateHasher } from "./hash";
 import type { HexMap } from "./map";
 import type { Orders } from "./orders";
@@ -38,14 +39,36 @@ export interface Element {
   hex: number;
   personnel: number;
   move: MoveState | null;
+  /** Drone crews: hex at the centre of the patrol area, or null. */
+  patrol: number | null;
 }
 
-export type SimEventKind = "orderApplied" | "arrived" | "blocked";
+/**
+ * What one side believes about one enemy element. targetId links it to the
+ * real element inside the engine; observe() never reveals it.
+ */
+export interface Track {
+  /** Side-local id, e.g. "ua-T7". */
+  id: string;
+  targetId: string;
+  quality: TrackQuality;
+  /** Reported hex (may be off by a couple of hexes while Suspected). */
+  hex: number;
+  /** Tick of the last detection of any quality. */
+  lastSeenTick: number;
+  /** Tick the current quality was last confirmed (decay timer). */
+  qualityTick: number;
+  /** Known element type, once Identified. */
+  typeId: ElementTypeId | null;
+}
+
+export type SimEventKind = "orderApplied" | "arrived" | "blocked" | "newContact" | "lostContact";
 
 export interface SimEvent {
   tick: number;
   kind: SimEventKind;
   side: SideId;
+  /** The acting element; for contact events, the side-local track id. */
   elementId: string;
   hex: number;
   note?: string;
@@ -67,6 +90,10 @@ export interface GameState {
   cycle: number;
   units: Unit[];
   elements: Element[];
+  /** Each side's picture of the enemy. */
+  tracks: Record<SideId, Track[]>;
+  /** Counters for side-local track ids. */
+  trackCounter: Record<SideId, number>;
   /** Validated orders waiting for the next cycle. */
   pending: Record<SideId, Orders | null>;
   /** Orders actually resolved each cycle: everything a replay needs. */
@@ -89,6 +116,29 @@ export function hashState(state: GameState): string {
     cycle: state.cycle,
     units: state.units,
     elements: state.elements,
+    tracks: state.tracks,
+    trackCounter: state.trackCounter,
   });
   return new StateHasher().bytes(new TextEncoder().encode(state.map.hash() + dynamic)).digest();
+}
+
+/** A fresh game state at tick 0. */
+export function newGameState(init: {
+  scenarioId: string;
+  seed: number;
+  map: HexMap;
+  startHour: number;
+  units: Unit[];
+  elements: Element[];
+}): GameState {
+  return {
+    ...init,
+    tick: 0,
+    cycle: 0,
+    tracks: { ua: [], ru: [] },
+    trackCounter: { ua: 0, ru: 0 },
+    pending: { ua: null, ru: null },
+    history: [],
+    lastEvents: [],
+  };
 }

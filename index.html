@@ -10,8 +10,27 @@
     <div id="app">
       <canvas id="map" aria-label="Sector map"></canvas>
       <aside id="panel">
-        <h1>Kill Zone <span class="version">slice 3</span></h1>
-        <p class="sub">Debug view: both sides visible. Click a unit, then right-click a hex to order a move (or use Move mode on touch screens). Run a day to resolve.</p>
+        <h1>Kill Zone <span class="version">slice 4</span></h1>
+        <p class="sub">Pick a viewpoint: a side sees only its own units and its sensor contacts. Click a unit, then right-click a hex to order it (drone crews: set the patrol area). Run a day to resolve.</p>
+
+        <section>
+          <h2>Viewpoint</h2>
+          <label class="row"><select id="viewpoint">
+            <option value="ua">Ukraine (fog of war)</option>
+            <option value="ru">Russia (fog of war)</option>
+            <option value="god">God view (debug: everything)</option>
+          </select></label>
+          <label class="row">Coverage <select id="coverage">
+            <option value="off">Off</option>
+            <option value="infantry">vs static infantry</option>
+            <option value="vehicles">vs moving vehicles</option>
+          </select></label>
+          <label class="row" id="coverage-side-row">Sensors of <select id="coverage-side">
+            <option value="ua">Ukraine</option>
+            <option value="ru">Russia</option>
+          </select></label>
+          <p class="sub" id="coverage-help">Heatmap: chance that the chosen side would locate an enemy target of that kind in each hex within one hour, given its current sensors and the time of day. Radio intercept (which only gives vague contacts) is not counted.</p>
+        </section>
 
         <section>
           <h2>Game</h2>
@@ -20,7 +39,7 @@
             <button id="run-day" class="primary">Run 1 day</button>
           </div>
           <div class="row buttons">
-            <button id="move-mode" aria-pressed="false">Move mode</button>
+            <button id="move-mode" aria-pressed="false">Tap to order</button>
             <button id="clear-orders">Clear orders</button>
           </div>
           <div id="orders-summary" class="sub"></div>

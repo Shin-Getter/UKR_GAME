@@ -33,7 +33,7 @@ npm run build      # typecheck + production build into dist/
 
 ## How to play (current build)
 
-Debug view, both sides visible: click a unit marker to select it, right-click a hex to queue a move (or toggle **Move mode** and left-click on touch screens), then **Run 1 day**. Games can be downloaded as replay files and loaded back; a replay verifies itself against a state hash.
+Choose a **viewpoint**: Ukraine or Russia (fog of war: own units plus sensor contacts) or the debug god view. Click one of your unit markers, right-click a hex to queue a move (drone crews: set the patrol area), then **Run 1 day**. The **coverage** overlay shows where your sensors would locate an enemy within an hour. Games can be downloaded as replay files and loaded back; a replay verifies itself against a state hash.
 
 ## Maps
 

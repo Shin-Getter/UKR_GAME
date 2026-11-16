@@ -1,10 +1,14 @@
+import { ELEMENT_SENSORS, SENSORS } from "../data/sensing";
 import { TERRAIN } from "../data/terrain";
+import { hexDistance, offsetToAxial } from "./hex";
 import type { Offset } from "./hex";
 import type { GameState, SideId } from "./state";
 
 export type Order =
   | { kind: "move"; elementId: string; to: Offset }
-  | { kind: "hold"; elementId: string };
+  | { kind: "hold"; elementId: string }
+  /** Drone crews: centre of the area the drones patrol. */
+  | { kind: "patrol"; elementId: string; at: Offset };
 
 /** One side's orders for one cycle. */
 export interface Orders {
@@ -56,6 +60,22 @@ export function validateOrders(state: GameState, orders: Orders): ValidationResu
       const t = state.map.terrainAt(order.to.col, order.to.row);
       if (!Number.isFinite(TERRAIN[t].footMoveCost.value) && state.map.road[state.map.index(order.to.col, order.to.row)] === 0) {
         rejected.push({ order, reason: "destination is impassable" });
+        continue;
+      }
+    }
+    if (order.kind === "patrol") {
+      const drone = ELEMENT_SENSORS[el.typeId].map((id) => SENSORS[id]).find((s) => s.mode === "drone");
+      if (!drone) {
+        rejected.push({ order, reason: `element ${el.id} has no drones` });
+        continue;
+      }
+      if (!state.map.inBounds(order.at.col, order.at.row)) {
+        rejected.push({ order, reason: "patrol area is off the map" });
+        continue;
+      }
+      const d = hexDistance(state.map.axialOfIndex(el.hex), offsetToAxial(order.at));
+      if (d > (drone.controlRangeHex ?? 0)) {
+        rejected.push({ order, reason: `patrol area is ${d} hexes away; control range is ${drone.controlRangeHex}` });
         continue;
       }
     }

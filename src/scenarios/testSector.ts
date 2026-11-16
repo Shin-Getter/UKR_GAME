@@ -5,7 +5,7 @@
 import { Terrain } from "../data/terrain";
 import { generateSector } from "../engine/mapgen";
 import { Rng } from "../engine/rng";
-import type { GameState } from "../engine/state";
+import { type GameState, newGameState } from "../engine/state";
 import { buildForces } from "./forces";
 
 export const TEST_SECTOR_ID = "test-sector";
@@ -34,17 +34,5 @@ export function buildTestSector(seed: number): GameState {
     rng,
   );
 
-  return {
-    scenarioId: TEST_SECTOR_ID,
-    seed,
-    map,
-    startHour: 6,
-    tick: 0,
-    cycle: 0,
-    units,
-    elements,
-    pending: { ua: null, ru: null },
-    history: [],
-    lastEvents: [],
-  };
+  return newGameState({ scenarioId: TEST_SECTOR_ID, seed, map, startHour: 6, units, elements });
 }

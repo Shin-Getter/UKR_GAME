@@ -6,6 +6,7 @@
  */
 import { TICKS_PER_DAY } from "../data/time";
 import { beginMove, movementSystem } from "./movement";
+import { sensingSystem, trackDecaySystem } from "./sensing";
 import { validateOrders } from "./orders";
 import { hashString, Rng } from "./rng";
 import { type GameState, SIDES, type SimEvent } from "./state";
@@ -22,7 +23,11 @@ export interface System {
   run(state: GameState, ctx: TickContext): void;
 }
 
-export const SYSTEMS: readonly System[] = [{ name: "movement", run: movementSystem }];
+export const SYSTEMS: readonly System[] = [
+  { name: "movement", run: movementSystem },
+  { name: "sensing", run: sensingSystem },
+  { name: "tracks", run: trackDecaySystem },
+];
 
 function makeContext(state: GameState, system: string, events: SimEvent[]): TickContext {
   const tick = state.tick;
@@ -50,6 +55,8 @@ function applyOrders(state: GameState, events: SimEvent[]): void {
       const el = state.elements.find((e) => e.id === order.elementId)!;
       if (order.kind === "move") {
         beginMove(state, el, state.map.index(order.to.col, order.to.row));
+      } else if (order.kind === "patrol") {
+        el.patrol = state.map.index(order.at.col, order.at.row);
       } else {
         el.move = null;
       }

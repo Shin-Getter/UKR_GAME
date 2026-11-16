@@ -28,6 +28,8 @@ export interface TerrainDef {
   footMoveCost: Param;
   /** Movement cost multiplier for tracked vehicles; Infinity = impassable. */
   vehicleMoveCost: Param;
+  /** Height of vegetation or buildings above ground, for line of sight. */
+  obstacleHeight: Param;
 }
 
 export const TERRAIN: Record<Terrain, TerrainDef> = {
@@ -38,6 +40,7 @@ export const TERRAIN: Record<Terrain, TerrainDef> = {
     cover: guess(0.0, "fraction"),
     footMoveCost: guess(1.0, "multiplier"),
     vehicleMoveCost: guess(1.0, "multiplier"),
+    obstacleHeight: guess(0, "m"),
   },
   [Terrain.Treeline]: {
     id: Terrain.Treeline,
@@ -46,6 +49,7 @@ export const TERRAIN: Record<Terrain, TerrainDef> = {
     cover: guess(0.15, "fraction"),
     footMoveCost: guess(1.3, "multiplier"),
     vehicleMoveCost: guess(1.8, "multiplier"),
+    obstacleHeight: guess(12, "m"),
   },
   [Terrain.Forest]: {
     id: Terrain.Forest,
@@ -54,6 +58,7 @@ export const TERRAIN: Record<Terrain, TerrainDef> = {
     cover: guess(0.2, "fraction"),
     footMoveCost: guess(1.6, "multiplier"),
     vehicleMoveCost: guess(3.0, "multiplier"),
+    obstacleHeight: guess(18, "m"),
   },
   [Terrain.Village]: {
     id: Terrain.Village,
@@ -62,6 +67,7 @@ export const TERRAIN: Record<Terrain, TerrainDef> = {
     cover: guess(0.35, "fraction"),
     footMoveCost: guess(1.4, "multiplier"),
     vehicleMoveCost: guess(1.5, "multiplier"),
+    obstacleHeight: guess(8, "m"),
   },
   [Terrain.Urban]: {
     id: Terrain.Urban,
@@ -70,6 +76,7 @@ export const TERRAIN: Record<Terrain, TerrainDef> = {
     cover: guess(0.55, "fraction"),
     footMoveCost: guess(2.0, "multiplier"),
     vehicleMoveCost: guess(2.5, "multiplier"),
+    obstacleHeight: guess(20, "m"),
   },
   [Terrain.Marsh]: {
     id: Terrain.Marsh,
@@ -78,6 +85,7 @@ export const TERRAIN: Record<Terrain, TerrainDef> = {
     cover: guess(0.05, "fraction"),
     footMoveCost: guess(2.5, "multiplier"),
     vehicleMoveCost: guess(6.0, "multiplier"),
+    obstacleHeight: guess(2, "m"),
   },
   [Terrain.Water]: {
     id: Terrain.Water,
@@ -86,5 +94,6 @@ export const TERRAIN: Record<Terrain, TerrainDef> = {
     cover: guess(0.0, "fraction"),
     footMoveCost: guess(Infinity, "multiplier", "Needs a crossing"),
     vehicleMoveCost: guess(Infinity, "multiplier", "Needs a bridge or ford"),
+    obstacleHeight: guess(0, "m"),
   },
 };

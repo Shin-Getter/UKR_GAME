@@ -12,6 +12,8 @@ import {
 import { type HexMap, RoadClass } from "../engine/map";
 import type { Element, SideId } from "../engine/state";
 import type { Place } from "../engine/mapio";
+import type { TrackReport } from "../engine/controller";
+import { TrackQuality } from "../data/sensing";
 import { ELEMENT_TYPES } from "../data/elements";
 import { RELIEF_BANDS, ROAD_COLOR, shade, TERRAIN_COLOR } from "./palette";
 
@@ -47,11 +49,27 @@ export class MapRenderer {
   onRightClick: (hex: Axial) => void = () => {};
 
   /** Forces to draw, the selected element and queued move destinations. */
-  forces: { elements: Element[]; selectedId: string | null; pendingTargets: Map<string, number> } = {
+  forces: {
+    elements: Element[];
+    selectedId: string | null;
+    pendingTargets: Map<string, number>;
+    pendingPatrols: Map<string, number>;
+    /** Enemy contacts to draw (side views), with the enemy side's colour. */
+    tracks: TrackReport[];
+    trackSide: SideId | null;
+    /** Drone patrol radius in hexes. */
+    patrolRadiusHex: number;
+  } = {
     elements: [],
     selectedId: null,
     pendingTargets: new Map(),
+    pendingPatrols: new Map(),
+    tracks: [],
+    trackSide: null,
+    patrolRadiusHex: 8,
   };
+  /** Per-hex detection probability overlay (0..1), or null. */
+  coverage: Float32Array | null = null;
   /** Place names to label, and the (illustrative) line of contact to draw. */
   places: Place[] = [];
   frontHexes: number[] = [];
@@ -335,10 +353,42 @@ export class MapRenderer {
       ctx.stroke();
     }
 
+    this.drawCoverage(ctx, toScreen, row0, row1, col0, col1, corners);
     this.drawFront(ctx, toScreen);
     this.drawForces(ctx, toScreen);
     this.drawPlaces(ctx, toScreen);
     this.drawScaleBar(ctx, h);
+  }
+
+  private drawCoverage(
+    ctx: CanvasRenderingContext2D,
+    toScreen: (x: number, y: number) => [number, number],
+    row0: number,
+    row1: number,
+    col0: number,
+    col1: number,
+    corners: [number, number][],
+  ): void {
+    const cov = this.coverage;
+    if (!cov) return;
+    const buckets = Array.from({ length: 10 }, () => new Path2D());
+    for (let row = row0; row <= row1; row++) {
+      for (let col = col0; col <= col1; col++) {
+        const p = cov[this.map.index(col, row)]!;
+        if (p < 0.02) continue;
+        const b = Math.min(9, Math.floor(p * 10));
+        const c = hexToWorld(offsetToAxial({ col, row }));
+        const [x, y] = toScreen(c.x, c.y);
+        const path = buckets[b]!;
+        path.moveTo(x + corners[0]![0], y + corners[0]![1]);
+        for (let k = 1; k < 6; k++) path.lineTo(x + corners[k]![0], y + corners[k]![1]);
+        path.closePath();
+      }
+    }
+    buckets.forEach((path, b) => {
+      ctx.fillStyle = `rgba(255,40,40,${(0.1 + 0.06 * b).toFixed(2)})`;
+      ctx.fill(path);
+    });
   }
 
   private drawFront(ctx: CanvasRenderingContext2D, toScreen: (x: number, y: number) => [number, number]): void {
@@ -405,7 +455,7 @@ export class MapRenderer {
   private drawForces(ctx: CanvasRenderingContext2D, toScreen: (x: number, y: number) => [number, number]): void {
     const { elements, selectedId, pendingTargets } = this.forces;
     this.markerRects = [];
-    if (elements.length === 0) return;
+    if (elements.length === 0 && this.forces.tracks.length === 0) return;
     const map = this.map;
     const centre = (i: number) => {
       const c = hexToWorld(map.axialOfIndex(i));
@@ -448,6 +498,89 @@ export class MapRenderer {
       }
     }
     ctx.setLineDash([]);
+
+    // Drone patrol areas (dashed rings), queued patrols in yellow.
+    const ringPx = (this.forces.patrolRadiusHex + 0.5) * HEX_FLAT_TO_FLAT_M * this.scale;
+    for (const el of elements) {
+      const queued = this.forces.pendingPatrols.get(el.id);
+      for (const [hex, colour, alpha] of [
+        [el.patrol, SIDE_COLOR[el.side], el.id === selectedId ? 1 : 0.45],
+        [queued ?? null, "#ffd23f", 1],
+      ] as [number | null, string, number][]) {
+        if (hex === null) continue;
+        const [cx, cy] = centre(hex);
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = colour;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.arc(cx, cy, ringPx, 0, Math.PI * 2);
+        ctx.stroke();
+        if (el.id === selectedId || colour === "#ffd23f") {
+          const [x0, y0] = centre(el.hex);
+          ctx.beginPath();
+          ctx.moveTo(x0, y0);
+          ctx.lineTo(cx, cy);
+          ctx.stroke();
+        }
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // Enemy contacts.
+    if (this.forces.trackSide) {
+      const colour = SIDE_COLOR[this.forces.trackSide];
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      for (const t of this.forces.tracks) {
+        const [cx, cy] = centre(t.hex);
+        const x = cx - w / 2;
+        const y = cy - h / 2;
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = colour;
+        if (t.quality === TrackQuality.Suspected) {
+          ctx.setLineDash([3, 3]);
+          ctx.beginPath();
+          ctx.arc(cx, cy, Math.max(6, w * 0.45), 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          if (w >= 16) {
+            ctx.fillStyle = colour;
+            ctx.font = `700 ${Math.max(9, Math.round(h * 0.7))}px system-ui, sans-serif`;
+            ctx.fillText("?", cx, cy + 1);
+          }
+          continue;
+        }
+        ctx.fillStyle = colour;
+        ctx.globalAlpha = t.quality === TrackQuality.Detected ? 0.25 : 0.75;
+        ctx.fillRect(x, y, w, h);
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = "#000000";
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash(t.quality === TrackQuality.Detected ? [3, 2] : []);
+        ctx.strokeRect(x, y, w, h);
+        ctx.setLineDash([]);
+        if (w >= 24) {
+          ctx.fillStyle = "#ffffff";
+          ctx.font = `600 ${Math.max(8, Math.round(h * 0.55))}px system-ui, sans-serif`;
+          ctx.fillText(t.typeId ? ELEMENT_TYPES[t.typeId].abbr : "?", x + w / 2, y + h / 2 + 1);
+        }
+        if (t.quality === TrackQuality.Targetable) {
+          // Crosshair corners: precise, current fix.
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 2;
+          const g = 4;
+          ctx.beginPath();
+          for (const [px, py, dx, dy] of [[x - g, y - g, 1, 1], [x + w + g, y - g, -1, 1], [x - g, y + h + g, 1, -1], [x + w + g, y + h + g, -1, -1]] as const) {
+            ctx.moveTo(px + dx * 6, py);
+            ctx.lineTo(px, py);
+            ctx.lineTo(px, py + dy * 6);
+          }
+          ctx.stroke();
+        }
+      }
+    }
 
     // Markers, stacked when several elements share a hex.
     const stackIndex = new Map<number, number>();

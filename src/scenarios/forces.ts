@@ -8,6 +8,7 @@
  */
 import { ELEMENT_TYPES, type ElementTypeId } from "../data/elements";
 import { Terrain } from "../data/terrain";
+import { axialToOffset } from "../engine/hex";
 import type { HexMap } from "../engine/map";
 import type { Rng } from "../engine/rng";
 import { type Echelon, type Element, SIDE_NAMES, type SideId, type Unit } from "../engine/state";
@@ -61,7 +62,19 @@ export function buildForces(map: HexMap, front: FrontLine, rng: Rng): { units: U
       hex: chosen,
       personnel: ELEMENT_TYPES[typeId].personnel,
       move: null,
+      patrol: null,
     });
+    return elements.at(-1)!;
+  };
+
+  /** Recon drones start patrolling 4 hexes beyond the line of contact, in their own lane. */
+  const setPatrol = (el: Element) => {
+    const o = axialToOffset(map.axialOfIndex(el.hex));
+    const lane = front.orientation === "ew" ? o.col : o.row;
+    const depth = front.line[lane]! - front.rear[el.side] * 4;
+    const col = front.orientation === "ew" ? lane : depth;
+    const row = front.orientation === "ew" ? depth : lane;
+    if (map.inBounds(col, row)) el.patrol = map.index(col, row);
   };
 
   const f0 = Math.floor(lanes * front.laneFrom);
@@ -79,7 +92,7 @@ export function buildForces(map: HexMap, front: FrontLine, rng: Rng): { units: U
       place(side, coy, "assaultGroup", a, b, 3, 7);
     }
     place(side, bn, "hq", f0, f1, 20, 32);
-    place(side, bn, "reconDroneCrew", f0, f1, 12, 24);
+    setPatrol(place(side, bn, "reconDroneCrew", f0, f1, 12, 24));
     place(side, bn, "strikeDroneCrew", f0, f1, 12, 24);
     place(side, bn, "strikeDroneCrew", f0, f1, 12, 24);
     place(side, bn, "mortarSection", f0, f1, 10, 18);
