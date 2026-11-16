@@ -125,7 +125,21 @@ interface OsmEl {
   members?: { type: string; role: string; geometry?: Pt[] }[];
 }
 
+/**
+ * Manually exported Overpass results (e.g. from overpass-turbo.eu), used when
+ * the Overpass API is unreachable from the build machine. See data/osm/README.md.
+ */
+function readLocalOsm(): OsmEl[] | null {
+  const files = [`data/osm/${def.id}-features.json`, `data/osm/${def.id}-buildings.json`];
+  if (!files.every((f) => existsSync(f))) return null;
+  const els = files.flatMap((f) => (JSON.parse(readFileSync(f, "utf8")) as { elements: OsmEl[] }).elements);
+  console.log(`osm: ${els.length} elements from ${files.join(" + ")}`);
+  return els;
+}
+
 async function fetchOsm(): Promise<OsmEl[]> {
+  const local = readLocalOsm();
+  if (local) return local;
   const pad = 0.01;
   const bbox = `${south - pad},${def.west - pad},${def.north + pad},${east + pad}`;
   const query = `[out:json][timeout:300][bbox:${bbox}];
