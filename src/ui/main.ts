@@ -16,7 +16,7 @@ import { resolveCycle } from "../engine/sim";
 import { type GameState, hashState, SIDE_NAMES, SIDES, type SideId } from "../engine/state";
 import { SCENARIO_LIST, SCENARIOS, type ScenarioInfo } from "../scenarios";
 import { ROAD_COLOR, shade, TERRAIN_COLOR } from "./palette";
-import { MapRenderer, SIDE_COLOR } from "./renderer";
+import { type Interaction, MapRenderer, SIDE_COLOR } from "./renderer";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -74,6 +74,55 @@ function message(text: string): void {
   $("game-msg").textContent = text;
 }
 
+/** Ticks an interaction stays visible during replay playback (fading). */
+const INTERACTION_TICKS = 4;
+
+function computeInteractions(visibleIds: Set<string>, trackHexes: Set<number>): Interaction[] {
+  if (!$<HTMLInputElement>("interactions").checked) return [];
+  const out: Interaction[] = [];
+  const replaying = player !== null;
+  for (const e of state.lastEvents) {
+    if (!canControl(e.side)) continue;
+    let alpha: number;
+    if (replaying) {
+      const age = state.tick - e.tick;
+      if (age < 0 || age >= INTERACTION_TICKS) continue;
+      alpha = 1 - age / INTERACTION_TICKS;
+    } else {
+      alpha = 0.35; // end of a live day: show the whole day faintly
+    }
+    if (e.kind === "strikeLaunched") {
+      const area = /mortar|gun/i.test(e.note ?? "");
+      out.push({ kind: "strike", side: e.side, from: e.fromHex, to: e.hex, area, alpha });
+    } else if (e.kind === "newContact" && replaying) {
+      out.push({ kind: "spot", side: e.side, from: e.fromHex, to: e.hex, alpha: alpha * 0.8 });
+    } else if (e.kind === "struck") {
+      out.push({ kind: "impact", side: e.side, to: e.hex, alpha });
+    } else if (e.kind === "closeCombat") {
+      out.push({ kind: "melee", side: e.side, to: e.hex, alpha: replaying ? alpha : 0.6 });
+    } else if (e.kind === "withdrew") {
+      out.push({ kind: "withdraw", side: e.side, from: e.fromHex, to: e.hex, alpha });
+    }
+  }
+  // Close combat now: hexes where our elements share a hex with the enemy.
+  const contested = new Set<number>();
+  const own = state.elements.filter((x) => visibleIds.has(x.id));
+  if (viewpoint === "god") {
+    const sides = new Map<number, Set<string>>();
+    for (const x of state.elements) (sides.get(x.hex) ?? sides.set(x.hex, new Set()).get(x.hex)!).add(x.side);
+    for (const [hex, set] of sides) if (set.size > 1) contested.add(hex);
+  } else {
+    for (const x of own) if (trackHexes.has(x.hex)) contested.add(x.hex);
+  }
+  for (const hex of contested) out.push({ kind: "melee", side: viewpoint === "god" ? "ua" : viewpoint, to: hex, alpha: 1 });
+  return out;
+}
+
+/** Elements visible to the current viewpoint in a hex, in drawing order. */
+function stackAt(hex: number) {
+  return renderer.forces.elements.filter((e) => e.hex === hex);
+}
+
 function refresh(): void {
   const pendingTargets = new Map<string, number>();
   const pendingPatrols = new Map<string, number>();
@@ -96,6 +145,10 @@ function refresh(): void {
     destroyed: state.destroyed.filter((e) => canControl(e.side)),
     struckIds: new Set(state.lastEvents.filter((e) => e.kind === "struck" && canControl(e.side)).map((e) => e.elementId)),
   };
+  renderer.interactions = computeInteractions(
+    new Set(renderer.forces.elements.map((e) => e.id)),
+    new Set((obs ? obs.tracks : []).map((t) => t.hex)),
+  );
   updateCoverage();
   renderer.requestDraw();
 
@@ -146,6 +199,13 @@ function refresh(): void {
       <dt>Hex</dt><dd>${o.col}, ${o.row}</dd>
       <dt>Status</dt><dd>${status}</dd>
     </dl>
+    ${(() => {
+      const stack = stackAt(sel.hex);
+      if (stack.length < 2) return "";
+      return `<p class="sub">In this hex (${stack.length}): ${stack
+        .map((x) => `<button class="stack-pick${x.id === sel.id ? " current" : ""}" data-id="${x.id}">${esc(ELEMENT_TYPES[x.typeId].abbr)} ${x.id}</button>`)
+        .join(" ")}</p>`;
+    })()}
     <p class="sub">${hasDrones(sel.typeId) ? "Right-click sets the drone patrol area (within 8 km). To relocate the crew instead, turn on Tap to order and tap a hex." : "Right-click a hex to order a move."}</p>`;
   } else {
     $("selected").textContent = "None. Click one of your unit markers.";
@@ -165,6 +225,8 @@ function refresh(): void {
         if (e.kind === "strikeLaunched") return `<li class="${e.side}">${t} ${who}${esc(name(e.elementId))}: ${esc(e.note ?? "")}</li>`;
         if (e.kind === "struck") return `<li class="hit">${t} ${who}${esc(name(e.elementId))} hit: ${esc(e.note ?? "")}</li>`;
         if (e.kind === "destroyed") return `<li class="hit">${t} ${who}${esc(name(e.elementId))} destroyed</li>`;
+        if (e.kind === "closeCombat") return `<li class="hit">${t} ${who}close combat at ${(() => { const o = axialToOffset(state.map.axialOfIndex(e.hex)); return `${o.col}, ${o.row}`; })()}: ${esc(e.note ?? "")}</li>`;
+        if (e.kind === "withdrew") return `<li class="${e.side}">${t} ${who}${esc(name(e.elementId))} pulled back</li>`;
         if (e.kind === "newContact" || e.kind === "lostContact") {
           return `<li class="contact">${t} ${who}${e.kind === "newContact" ? "new contact" : "lost contact"} ${e.elementId}</li>`;
         }
@@ -246,9 +308,22 @@ renderer.onClick = (elementId, hex) => {
     return;
   }
   const el = elementId ? state.elements.find((e) => e.id === elementId) : undefined;
-  selectedId = el && canControl(el.side) ? el.id : null;
+  if (el && canControl(el.side)) {
+    const stack = stackAt(el.hex);
+    const cur = stack.findIndex((x) => x.id === selectedId);
+    // Clicking a stack again cycles through the elements in it.
+    selectedId = stack.length > 1 && cur >= 0 ? stack[(cur + 1) % stack.length]!.id : el.id;
+  } else {
+    selectedId = null;
+  }
   refresh();
 };
+$("selected").addEventListener("click", (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLElement>(".stack-pick");
+  if (!b?.dataset.id) return;
+  selectedId = b.dataset.id;
+  refresh();
+});
 renderer.onRightClick = (hex) => issueOrder(hex);
 
 renderer.onHover = (hex) => {
@@ -310,7 +385,7 @@ $("viewpoint").addEventListener("change", () => {
   history.replaceState(null, "", url);
   refresh();
 });
-for (const id of ["coverage", "coverage-side"]) $(id).addEventListener("change", () => refresh());
+for (const id of ["coverage", "coverage-side", "interactions"]) $(id).addEventListener("change", () => refresh());
 
 $("move-mode").addEventListener("click", () => {
   moveMode = !moveMode;
@@ -483,6 +558,9 @@ $("legend").innerHTML =
   `<li><span class="front"></span>Line of contact (illustrative)</li>` +
   `<li><span class="ring" style="color:${SIDE_COLOR.ua}"></span>Drone patrol area (2 km)</li>` +
   `<li><span class="heat"></span>Chance to locate an enemy target per hour</li>` +
+  `<li><span class="line" style="background:${SIDE_COLOR.ua}"></span>Strike (arrow; dashed circle = area fire) · dotted = spotted</li>` +
+  `<li><span class="ring" style="color:#ff2d2d;border-style:solid"></span>Close combat in this hex</li>` +
+  `<li>Badge number = units stacked in a hex (zoom in to spread them, click again to cycle)</li>` +
   `<li>Contacts: dashed ring = suspected · dashed box = detected · solid = identified · corner marks = targetable</li>` +
   `<li><span class="swatch" style="background:${SIDE_COLOR.ru}"></span>Russia unit</li>` +
   Object.values(TERRAIN)

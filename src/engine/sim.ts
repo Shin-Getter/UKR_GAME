@@ -8,6 +8,7 @@ import { TICKS_PER_DAY } from "../data/time";
 import { beginMove, movementSystem } from "./movement";
 import { sensingSystem, trackDecaySystem } from "./sensing";
 import { strikeAllocationSystem, strikeResolutionSystem } from "./strikes";
+import { closeCombatSystem } from "./closeCombat";
 import { validateOrders } from "./orders";
 import { hashString, Rng } from "./rng";
 import { type GameState, SIDES, type SimEvent } from "./state";
@@ -30,6 +31,7 @@ export const SYSTEMS: readonly System[] = [
   { name: "tracks", run: trackDecaySystem },
   { name: "strikeAllocation", run: strikeAllocationSystem },
   { name: "strikeResolution", run: strikeResolutionSystem },
+  { name: "closeCombat", run: closeCombatSystem },
 ];
 
 function makeContext(state: GameState, system: string, events: SimEvent[]): TickContext {

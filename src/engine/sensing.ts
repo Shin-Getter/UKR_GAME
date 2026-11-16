@@ -103,13 +103,14 @@ function jitter(map: HexMap, hex: number, rng: Rng): number {
   return map.indexOfAxial(offsetToAxial({ col, row }));
 }
 
-function applyDetection(
+export function applyDetection(
   state: GameState,
   side: SideId,
   target: Element,
   cap: TrackQuality,
   ctx: TickContext,
   rng: Rng,
+  fromHex?: number,
 ): void {
   const tracks = state.tracks[side];
   let track = tracks.find((t) => t.targetId === target.id);
@@ -128,7 +129,7 @@ function applyDetection(
     };
     tracks.push(track);
     tracks.sort((a, b) => (a.targetId < b.targetId ? -1 : 1));
-    ctx.emit({ kind: "newContact", side, elementId: track.id, hex: target.hex });
+    ctx.emit({ kind: "newContact", side, elementId: track.id, hex: target.hex, ...(fromHex !== undefined ? { fromHex } : {}) });
   }
   track.lastSeenTick = tick;
   // Each detection climbs one level, up to what the sensor can deliver.
@@ -163,7 +164,7 @@ export function sensingSystem(state: GameState, ctx: TickContext): void {
           if (rate <= 0) continue;
           if (rng.float() < pAtLeastOnce(rate)) {
             const d = hexDistance(map.axialOfIndex(origin), map.axialOfIndex(target.hex));
-            applyDetection(state, side, target, qualityFor(sensor, d), ctx, rng);
+            applyDetection(state, side, target, qualityFor(sensor, d), ctx, rng, origin);
           }
         }
       }

@@ -64,6 +64,12 @@ export function movementSystem(state: GameState, ctx: TickContext): void {
       move.progressM -= cost;
       move.step++;
       el.hex = next;
+      el.hexSince = ctx.tick + 1;
+      // Entering a hex held by the enemy is an assault: the element stops and close combat follows.
+      if (state.elements.some((o) => o.side !== el.side && o.hex === next && o.personnel > 0)) {
+        el.move = null;
+        break;
+      }
       if (move.step === move.path.length - 1) {
         ctx.emit({ kind: "arrived", side: el.side, elementId: el.id, hex: el.hex });
         el.move = null;

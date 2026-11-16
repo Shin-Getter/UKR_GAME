@@ -80,7 +80,14 @@ export function strikeAllocationSystem(state: GameState, ctx: TickContext): void
         launchTick: tick,
         impactTick: tick + weapon.latencyTicks,
       });
-      ctx.emit({ kind: "strikeLaunched", side, elementId: shooter.id, hex: target.hex, note: `${weapon.name} on contact ${target.id}` });
+      ctx.emit({
+        kind: "strikeLaunched",
+        side,
+        elementId: shooter.id,
+        hex: target.hex,
+        fromHex: shooter.hex,
+        note: `${weapon.name} on contact ${target.id}`,
+      });
     }
   }
 }
@@ -91,6 +98,16 @@ interface Damage {
 }
 
 /** Apply one hit to an element; returns what it did. */
+export function applyCasualties(target: Element, casualties: number, rng: Rng): number {
+  const n = Math.min(casualties, target.personnel);
+  for (let k = 0; k < n; k++) {
+    if (rng.float() < KIA_SHARE.value) target.killed++;
+    else target.wounded++;
+  }
+  target.personnel -= n;
+  return n;
+}
+
 function applyHit(target: Element, weapon: WeaponDef, rng: Rng): Damage {
   const type = ELEMENT_TYPES[target.typeId];
   let casualties = 0;
@@ -163,6 +180,11 @@ export function strikeResolutionSystem(state: GameState, ctx: TickContext): void
       note: `${d.casualties} casualties${d.vehiclesLost ? `, ${d.vehiclesLost} vehicle(s) lost` : ""}`,
     });
   }
+  removeDestroyed(state, ctx);
+}
+
+/** Move elements with no personnel left out of play, recording the loss. */
+export function removeDestroyed(state: GameState, ctx: TickContext): void {
   const gone = state.elements.filter((e) => e.personnel <= 0);
   for (const e of gone) {
     e.move = null;

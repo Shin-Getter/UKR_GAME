@@ -54,6 +54,8 @@ export interface Element {
   busyUntil: number;
   /** Missions launched in the current orders cycle. */
   missionsToday: number;
+  /** Tick the element entered its current hex (earliest occupant defends). */
+  hexSince: number;
 }
 
 /** A strike on its way: resolved at impactTick. */
@@ -100,7 +102,9 @@ export type SimEventKind =
   | "lostContact"
   | "strikeLaunched"
   | "struck"
-  | "destroyed";
+  | "destroyed"
+  | "closeCombat"
+  | "withdrew";
 
 export interface SimEvent {
   tick: number;
@@ -109,6 +113,8 @@ export interface SimEvent {
   /** The acting element; for contact events, the side-local track id. */
   elementId: string;
   hex: number;
+  /** Where the action came from (shooter or sensor position), for drawing interaction lines. */
+  fromHex?: number;
   note?: string;
 }
 
@@ -212,5 +218,6 @@ export function makeElement(id: string, typeId: ElementTypeId, side: SideId, uni
     firedTick: -1000,
     busyUntil: 0,
     missionsToday: 0,
+    hexSince: 0,
   };
 }

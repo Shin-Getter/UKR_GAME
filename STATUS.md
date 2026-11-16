@@ -18,9 +18,11 @@ Handoff file between work sessions. Update it at the end of every slice.
 
 - **Slice 5b: replay viewer and self-play.** `beginCycle`/`runTick`/`endCycle` split; `ReplayPlayer` (`src/engine/replayPlayer.ts`) steps or seeks tick by tick by re-simulating. "Prober" bot (`src/bots/prober.ts`) plays through `observe`/`submit` only. `scripts/selfplay.ts` writes bot-vs-bot replays to `public/replays/` (shipped as examples, listed from `index.json`). UI: replay transport (play/pause, speed, slider, ±15 min, ±1 day), example picker, load replay file, Continue playing from the end.
 
+- **Slice 5c: close combat, interaction lines, stacks.** Entering an enemy-held hex is an assault (the mover stops). `closeCombatSystem` (`src/engine/closeCombat.ts`, data in `src/data/combat.ts`): each tick, hexes with both sides fight; casualties scale with combat power (people and vehicles weighted by type) and are reduced by cover (first occupant defends with full cover, attacker gets 30%); a side below half the enemy's power pulls back to a neighbouring enemy-free hex; close contact reveals both sides as Targetable. Events carry `fromHex`. UI: strike lines (area fire with dispersion circle), spotting lines, impact bursts, close-combat rings and pull-back arrows, fading over the last hour in replays and shown faintly for the whole day in live play (toggle in View); stacked units fan out in a grid when zoomed in, show a count badge when zoomed out, cycle on repeated clicks and are listed in the selected-unit panel.
+
 ## Next
 
-- **Slice 6: movement modes, control and close combat.** Movement modes (column, dash, tactical, infiltration, static/concealed) trading speed for signature; postures (dug in, concealed); pathfinding; per-hex control gradient (held / contested / infiltrated / fire-dominated); assault and consolidation resolution; suppression and cohesion.
+- **Slice 6: movement modes, posture and control.** Movement modes (column, dash, tactical, infiltration, static/concealed) trading speed for signature; postures (dug in, concealed); pathfinding; per-hex control gradient (held / contested / infiltrated / fire-dominated); consolidation; suppression and cohesion (close combat breaks on power ratio only for now).
 
 ## Planned slices
 

@@ -19,6 +19,19 @@ import { RELIEF_BANDS, ROAD_COLOR, shade, TERRAIN_COLOR } from "./palette";
 
 export const SIDE_COLOR: Record<SideId, string> = { ua: "#2f6fd6", ru: "#c8352f" };
 
+/** Lighter side colours for spotting lines. */
+const SPOT_COLOR: Record<SideId, string> = { ua: "#9cc3ff", ru: "#ffaaa5" };
+
+export interface Interaction {
+  kind: "strike" | "spot" | "impact" | "melee" | "withdraw";
+  side: SideId;
+  to: number;
+  from?: number;
+  /** Area fire: draw the dispersion circle at the target. */
+  area?: boolean;
+  alpha: number;
+}
+
 export interface ViewOptions {
   grid: boolean;
   relief: boolean;
@@ -76,6 +89,8 @@ export class MapRenderer {
   };
   /** Per-hex detection probability overlay (0..1), or null. */
   coverage: Float32Array | null = null;
+  /** Things happening: drawn as lines, bursts and rings, alpha fading with age. */
+  interactions: Interaction[] = [];
   /** Place names to label, and the (illustrative) line of contact to draw. */
   places: Place[] = [];
   frontHexes: number[] = [];
@@ -362,6 +377,7 @@ export class MapRenderer {
     this.drawCoverage(ctx, toScreen, row0, row1, col0, col1, corners);
     this.drawFront(ctx, toScreen);
     this.drawForces(ctx, toScreen);
+    this.drawInteractions(ctx, toScreen);
     this.drawPlaces(ctx, toScreen);
     this.drawScaleBar(ctx, h);
   }
@@ -604,37 +620,160 @@ export class MapRenderer {
       ctx.lineWidth = 3;
     }
 
-    // Markers, stacked when several elements share a hex.
-    const stackIndex = new Map<number, number>();
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.font = `600 ${Math.max(8, Math.round(h * 0.55))}px system-ui, sans-serif`;
+    // Markers. Elements sharing a hex fan out into a grid when zoomed in;
+    // zoomed out, the stack shows its top element with a count badge.
+    const groups = new Map<number, Element[]>();
     for (const el of elements) {
-      const k = stackIndex.get(el.hex) ?? 0;
-      stackIndex.set(el.hex, k + 1);
-      const [cx, cy] = centre(el.hex);
-      const x = cx - w / 2 + k * 3;
-      const y = cy - h / 2 - k * 3;
+      const g = groups.get(el.hex);
+      if (g) g.push(el);
+      else groups.set(el.hex, [el]);
+    }
+    const hexPxNow = HEX_FLAT_TO_FLAT_M * this.scale;
+    const drawMarker = (el: Element, x: number, y: number, mw: number, mh: number) => {
       ctx.fillStyle = SIDE_COLOR[el.side];
-      ctx.fillRect(x, y, w, h);
+      ctx.fillRect(x, y, mw, mh);
       const struck = this.forces.struckIds.has(el.id);
       ctx.lineWidth = el.id === selectedId ? 3 : struck ? 2.5 : 1.5;
       ctx.strokeStyle = el.id === selectedId ? "#ffd23f" : struck ? "#ff2d2d" : "#000000";
-      ctx.strokeRect(x, y, w, h);
-      // Strength bar: remaining personnel.
-      if (w >= 14) {
+      ctx.strokeRect(x, y, mw, mh);
+      if (mw >= 14) {
         const frac = el.personnel / ELEMENT_TYPES[el.typeId].personnel;
         ctx.fillStyle = "rgba(0,0,0,0.6)";
-        ctx.fillRect(x, y + h + 1, w, 3);
+        ctx.fillRect(x, y + mh + 1, mw, 3);
         ctx.fillStyle = frac > 0.66 ? "#4cd964" : frac > 0.33 ? "#ffcc00" : "#ff3b30";
-        ctx.fillRect(x, y + h + 1, w * frac, 3);
+        ctx.fillRect(x, y + mh + 1, mw * frac, 3);
       }
-      if (w >= 24) {
+      if (mw >= 22) {
         ctx.fillStyle = "#ffffff";
-        ctx.fillText(ELEMENT_TYPES[el.typeId].abbr, x + w / 2, y + h / 2 + 1);
+        ctx.font = `600 ${Math.max(8, Math.round(mh * 0.55))}px system-ui, sans-serif`;
+        ctx.fillText(ELEMENT_TYPES[el.typeId].abbr, x + mw / 2, y + mh / 2 + 1);
       }
-      this.markerRects.push({ id: el.id, x, y, w, h });
+      this.markerRects.push({ id: el.id, x, y, w: mw, h: mh });
+    };
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (const [hex, group] of groups) {
+      const [cx, cy] = centre(hex);
+      if (group.length === 1) {
+        drawMarker(group[0]!, cx - w / 2, cy - h / 2, w, h);
+        continue;
+      }
+      if (hexPxNow >= 44) {
+        const cols = group.length <= 4 ? 2 : 3;
+        const rows = Math.ceil(group.length / cols);
+        const cellW = (hexPxNow * 0.82) / cols;
+        const mw = Math.min(34, cellW - 4);
+        const mh = Math.round(mw * 0.62);
+        const cellH = mh + 7;
+        group.forEach((el, k) => {
+          const c = k % cols;
+          const r = Math.floor(k / cols);
+          const x = cx - (cols * cellW) / 2 + c * cellW + (cellW - mw) / 2;
+          const y = cy - (rows * cellH) / 2 + r * cellH;
+          drawMarker(el, x, y, mw, mh);
+        });
+      } else {
+        // Collapsed stack: offset shadows, top element (the selected one if it is here), count badge.
+        const top = group.find((e) => e.id === selectedId) ?? group[0]!;
+        ctx.fillStyle = "rgba(0,0,0,0.55)";
+        ctx.fillRect(cx - w / 2 + 4, cy - h / 2 - 4, w, h);
+        ctx.fillStyle = SIDE_COLOR[top.side];
+        ctx.fillRect(cx - w / 2 + 2, cy - h / 2 - 2, w, h);
+        ctx.strokeStyle = "#000000";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(cx - w / 2 + 2, cy - h / 2 - 2, w, h);
+        drawMarker(top, cx - w / 2, cy - h / 2, w, h);
+        const br = Math.max(7, h * 0.45);
+        const bx = cx + w / 2 + 2;
+        const by = cy - h / 2 - 2;
+        ctx.beginPath();
+        ctx.arc(bx, by, br, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffffff";
+        ctx.fill();
+        ctx.strokeStyle = "#000000";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = "#000000";
+        ctx.font = `700 ${Math.round(br * 1.1)}px system-ui, sans-serif`;
+        ctx.fillText(String(group.length), bx, by + 1);
+      }
     }
+  }
+
+  /** Strike, spotting and withdrawal lines, impact bursts and close-combat rings. */
+  private drawInteractions(ctx: CanvasRenderingContext2D, toScreen: (x: number, y: number) => [number, number]): void {
+    if (this.interactions.length === 0) return;
+    const centre = (i: number) => {
+      const c = hexToWorld(this.map.axialOfIndex(i));
+      return toScreen(c.x, c.y);
+    };
+    const hexPx = HEX_FLAT_TO_FLAT_M * this.scale;
+    const arrow = (x0: number, y0: number, x1: number, y1: number, size: number) => {
+      const a = Math.atan2(y1 - y0, x1 - x0);
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x1 - size * Math.cos(a - 0.4), y1 - size * Math.sin(a - 0.4));
+      ctx.lineTo(x1 - size * Math.cos(a + 0.4), y1 - size * Math.sin(a + 0.4));
+      ctx.closePath();
+      ctx.fill();
+    };
+    for (const it of this.interactions) {
+      ctx.globalAlpha = it.alpha;
+      const [x1, y1] = centre(it.to);
+      const colour = it.kind === "spot" ? SPOT_COLOR[it.side] : SIDE_COLOR[it.side];
+      if ((it.kind === "strike" || it.kind === "spot" || it.kind === "withdraw") && it.from !== undefined && it.from !== it.to) {
+        const [x0, y0] = centre(it.from);
+        ctx.strokeStyle = it.kind === "withdraw" ? "#d0d0d0" : colour;
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.lineWidth = it.kind === "strike" ? 2 : 1.25;
+        ctx.setLineDash(it.kind === "spot" ? [2, 4] : it.kind === "withdraw" ? [6, 4] : []);
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        if (it.kind !== "spot") arrow(x0, y0, x1, y1, 8);
+        if (it.kind === "strike" && it.area) {
+          ctx.beginPath();
+          ctx.arc(x1, y1, Math.max(6, hexPx * 0.55), 0, Math.PI * 2);
+          ctx.setLineDash([3, 3]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      } else if (it.kind === "impact") {
+        // Small burst at the hex's upper-left so the struck marker stays readable.
+        const r = Math.min(14, Math.max(7, hexPx * 0.2));
+        const ox = hexPx >= 40 ? -hexPx * 0.28 : 0;
+        const oy = hexPx >= 40 ? -hexPx * 0.28 : 0;
+        ctx.globalAlpha = it.alpha * 0.9;
+        ctx.fillStyle = "#ff7a1a";
+        ctx.strokeStyle = "#3a0d00";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        for (let k = 0; k < 16; k++) {
+          const a = (Math.PI / 8) * k;
+          const rr = k % 2 === 0 ? r : r * 0.45;
+          const px = x1 + ox + rr * Math.cos(a);
+          const py = y1 + oy + rr * Math.sin(a);
+          if (k === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      } else if (it.kind === "melee") {
+        const r = Math.min(Math.max(9, hexPx * 0.55), 60);
+        ctx.strokeStyle = "#000000";
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.arc(x1, y1, r, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.strokeStyle = "#ff2d2d";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
   }
 
   private drawScaleBar(ctx: CanvasRenderingContext2D, h: number): void {
