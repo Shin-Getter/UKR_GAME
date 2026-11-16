@@ -1,0 +1,11 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Rng > matches the golden sequence (cross-platform determinism tripwire) 1`] = `
+[
+  2345461488,
+  1344865159,
+  2974739204,
+]
+`;
+
+exports[`Rng > matches the golden sequence (cross-platform determinism tripwire) 2`] = `0.4000730940606445`;

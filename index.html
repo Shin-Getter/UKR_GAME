@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kill Zone</title>
+    <link rel="stylesheet" href="./src/ui/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="map" aria-label="Sector map"></canvas>
+      <aside id="panel">
+        <h1>Kill Zone <span class="version">slice 1</span></h1>
+        <p class="sub">Sector map prototype: 250 m hexes, procedural test terrain.</p>
+
+        <section>
+          <h2>Sector</h2>
+          <label class="row">Seed <input id="seed" type="number" value="1" /></label>
+          <div class="row buttons">
+            <button id="regen">Generate</button>
+            <button id="random">Random seed</button>
+          </div>
+          <dl id="stats"></dl>
+        </section>
+
+        <section>
+          <h2>View</h2>
+          <label class="check"><input id="grid" type="checkbox" checked /> Hex grid (when zoomed in)</label>
+          <label class="check"><input id="relief" type="checkbox" checked /> Elevation shading</label>
+          <label class="check"><input id="roads" type="checkbox" checked /> Roads</label>
+          <div class="row buttons">
+            <button id="zoom-in" aria-label="Zoom in">+</button>
+            <button id="zoom-out" aria-label="Zoom out">−</button>
+            <button id="fit">Fit sector</button>
+          </div>
+        </section>
+
+        <section>
+          <h2>Hex</h2>
+          <div id="hover" class="hover">Hover a hex.</div>
+        </section>
+
+        <section>
+          <h2>Legend</h2>
+          <ul id="legend"></ul>
+        </section>
+      </aside>
+    </div>
+    <script type="module" src="./src/ui/main.ts"></script>
+  </body>
+</html>

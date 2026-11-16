@@ -1,0 +1,310 @@
+import { Terrain } from "../data/terrain";
+import {
+  type Axial,
+  DIRECTIONS,
+  HEX_FLAT_TO_FLAT_M,
+  HEX_RADIUS_M,
+  HEX_ROW_SPACING_M,
+  hexToWorld,
+  offsetToAxial,
+  worldToHex,
+} from "../engine/hex";
+import { type HexMap, RoadClass } from "../engine/map";
+import { RELIEF_BANDS, ROAD_COLOR, shade, TERRAIN_COLOR } from "./palette";
+
+export interface ViewOptions {
+  grid: boolean;
+  relief: boolean;
+  roads: boolean;
+}
+
+/**
+ * Canvas 2D map renderer with pan and zoom. Hexes are batched into one path
+ * per (terrain, relief band) so a full-sector redraw is a few dozen fills.
+ */
+export class MapRenderer {
+  /** World point (metres) at the canvas centre. */
+  private cx = 0;
+  private cy = 0;
+  /** Screen pixels per metre. */
+  private scale = 0.05;
+  private hover: Axial | null = null;
+  private frame = 0;
+  private fitted = false;
+  private elevMin = 0;
+  private elevMax = 1;
+
+  view: ViewOptions = { grid: true, relief: true, roads: true };
+  onHover: (hex: Axial | null) => void = () => {};
+
+  constructor(
+    private readonly canvas: HTMLCanvasElement,
+    private map: HexMap,
+  ) {
+    this.setMap(map);
+    this.attachInput();
+    new ResizeObserver(() => this.fit(false)).observe(canvas);
+  }
+
+  setMap(map: HexMap): void {
+    this.map = map;
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const e of map.elevation) {
+      lo = Math.min(lo, e);
+      hi = Math.max(hi, e);
+    }
+    this.elevMin = lo;
+    this.elevMax = Math.max(hi, lo + 1);
+    this.requestDraw();
+  }
+
+  /** Centre the sector and, if zoom is true, scale it to fit the canvas. */
+  fit(zoom = true): void {
+    const dpr = window.devicePixelRatio || 1;
+    const w = this.canvas.clientWidth;
+    const h = this.canvas.clientHeight;
+    this.canvas.width = Math.round(w * dpr);
+    this.canvas.height = Math.round(h * dpr);
+    const worldW = this.map.cols * HEX_FLAT_TO_FLAT_M;
+    const worldH = this.map.rows * HEX_ROW_SPACING_M;
+    if (zoom || !this.fitted) {
+      this.fitted = true;
+      this.cx = worldW / 2;
+      this.cy = worldH / 2;
+      this.scale = Math.min(w / worldW, h / worldH) * 0.95;
+    }
+    this.requestDraw();
+  }
+
+  zoomBy(factor: number, sx = this.canvas.clientWidth / 2, sy = this.canvas.clientHeight / 2): void {
+    const before = this.screenToWorld(sx, sy);
+    this.scale = Math.max(0.005, Math.min(0.8, this.scale * factor));
+    const after = this.screenToWorld(sx, sy);
+    this.cx += before.x - after.x;
+    this.cy += before.y - after.y;
+    this.requestDraw();
+  }
+
+  screenToWorld(sx: number, sy: number): { x: number; y: number } {
+    return {
+      x: this.cx + (sx - this.canvas.clientWidth / 2) / this.scale,
+      y: this.cy + (sy - this.canvas.clientHeight / 2) / this.scale,
+    };
+  }
+
+  requestDraw(): void {
+    if (this.frame !== 0 && this.frame !== -1) return;
+    this.frame = requestAnimationFrame(() => {
+      this.frame = -1;
+      this.draw();
+    });
+  }
+
+  private attachInput(): void {
+    const c = this.canvas;
+    let drag: { x: number; y: number } | null = null;
+    c.addEventListener("pointerdown", (e) => {
+      drag = { x: e.clientX, y: e.clientY };
+      c.setPointerCapture(e.pointerId);
+      c.classList.add("dragging");
+    });
+    c.addEventListener("pointermove", (e) => {
+      if (drag) {
+        this.cx -= (e.clientX - drag.x) / this.scale;
+        this.cy -= (e.clientY - drag.y) / this.scale;
+        drag = { x: e.clientX, y: e.clientY };
+        this.requestDraw();
+      }
+      const rect = c.getBoundingClientRect();
+      const w = this.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+      const h = worldToHex(w.x, w.y);
+      const inside = this.map.indexOfAxial(h) >= 0;
+      const next = inside ? h : null;
+      if (next?.q !== this.hover?.q || next?.r !== this.hover?.r) {
+        this.hover = next;
+        this.onHover(next);
+        this.requestDraw();
+      }
+    });
+    const end = () => {
+      drag = null;
+      c.classList.remove("dragging");
+    };
+    c.addEventListener("pointerup", end);
+    c.addEventListener("pointercancel", end);
+    c.addEventListener("pointerleave", () => {
+      if (this.hover) {
+        this.hover = null;
+        this.onHover(null);
+        this.requestDraw();
+      }
+    });
+    c.addEventListener(
+      "wheel",
+      (e) => {
+        e.preventDefault();
+        const rect = c.getBoundingClientRect();
+        this.zoomBy(Math.exp(-e.deltaY * 0.0015), e.clientX - rect.left, e.clientY - rect.top);
+      },
+      { passive: false },
+    );
+  }
+
+  private draw(): void {
+    const ctx = this.canvas.getContext("2d");
+    if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    const w = this.canvas.clientWidth;
+    const h = this.canvas.clientHeight;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = "#101214";
+    ctx.fillRect(0, 0, w, h);
+
+    const map = this.map;
+    const s = this.scale;
+    const toScreen = (x: number, y: number): [number, number] => [(x - this.cx) * s + w / 2, (y - this.cy) * s + h / 2];
+
+    // Visible offset-coordinate range, with a one-hex margin.
+    const tl = this.screenToWorld(0, 0);
+    const br = this.screenToWorld(w, h);
+    const row0 = Math.max(0, Math.floor(tl.y / HEX_ROW_SPACING_M) - 1);
+    const row1 = Math.min(map.rows - 1, Math.ceil(br.y / HEX_ROW_SPACING_M) + 1);
+    const col0 = Math.max(0, Math.floor(tl.x / HEX_FLAT_TO_FLAT_M) - 1);
+    const col1 = Math.min(map.cols - 1, Math.ceil(br.x / HEX_FLAT_TO_FLAT_M) + 1);
+
+    // Unit corner offsets in screen pixels (pointy-top). Slight overdraw hides seams.
+    const rad = HEX_RADIUS_M * s * 1.02;
+    const corners: [number, number][] = [];
+    for (let i = 0; i < 6; i++) {
+      const a = (Math.PI / 180) * (60 * i - 90);
+      corners.push([rad * Math.cos(a), rad * Math.sin(a)]);
+    }
+
+    const bands = this.view.relief ? RELIEF_BANDS : 1;
+    const paths = new Map<number, Path2D>();
+    const span = this.elevMax - this.elevMin;
+    for (let row = row0; row <= row1; row++) {
+      for (let col = col0; col <= col1; col++) {
+        const i = map.index(col, row);
+        const t = map.terrain[i]!;
+        const band = bands === 1 ? 0 : Math.min(bands - 1, Math.floor(((map.elevation[i]! - this.elevMin) / span) * bands));
+        const key = t * 16 + band;
+        let p = paths.get(key);
+        if (!p) paths.set(key, (p = new Path2D()));
+        const c = hexToWorld(offsetToAxial({ col, row }));
+        const [x, y] = toScreen(c.x, c.y);
+        p.moveTo(x + corners[0]![0], y + corners[0]![1]);
+        for (let k = 1; k < 6; k++) p.lineTo(x + corners[k]![0], y + corners[k]![1]);
+        p.closePath();
+      }
+    }
+    for (const [key, p] of paths) {
+      const t = Math.floor(key / 16) as Terrain;
+      const band = key % 16;
+      const factor = bands === 1 || t === Terrain.Water ? 1 : 0.82 + (0.3 * band) / (bands - 1);
+      ctx.fillStyle = shade(TERRAIN_COLOR[t], factor);
+      ctx.fill(p);
+    }
+
+    // Roads: segments between neighbouring road hexes (three directions avoids duplicates).
+    if (this.view.roads) {
+      const track = new Path2D();
+      const paved = new Path2D();
+      for (let row = row0; row <= row1; row++) {
+        for (let col = col0; col <= col1; col++) {
+          const i = map.index(col, row);
+          const cls = map.road[i]!;
+          if (cls === RoadClass.None) continue;
+          const a = offsetToAxial({ col, row });
+          const ca = hexToWorld(a);
+          const [ax, ay] = toScreen(ca.x, ca.y);
+          for (const d of [DIRECTIONS[0]!, DIRECTIONS[4]!, DIRECTIONS[5]!]) {
+            const b = { q: a.q + d.q, r: a.r + d.r };
+            const j = map.indexOfAxial(b);
+            if (j < 0) continue;
+            const other = map.road[j]!;
+            if (other === RoadClass.None) continue;
+            const cb = hexToWorld(b);
+            const [bx, by] = toScreen(cb.x, cb.y);
+            const p = Math.min(cls, other) === RoadClass.Paved ? paved : track;
+            p.moveTo(ax, ay);
+            p.lineTo(bx, by);
+          }
+        }
+      }
+      ctx.lineCap = "round";
+      ctx.strokeStyle = ROAD_COLOR.track;
+      ctx.lineWidth = Math.max(1, 18 * s);
+      ctx.stroke(track);
+      ctx.strokeStyle = ROAD_COLOR.paved;
+      ctx.lineWidth = Math.max(1.5, 30 * s);
+      ctx.stroke(paved);
+    }
+
+    // Grid lines once hexes are big enough to read.
+    const hexPx = HEX_FLAT_TO_FLAT_M * s;
+    if (this.view.grid && hexPx >= 12) {
+      const grid = new Path2D();
+      const r = HEX_RADIUS_M * s;
+      for (let row = row0; row <= row1; row++) {
+        for (let col = col0; col <= col1; col++) {
+          const c = hexToWorld(offsetToAxial({ col, row }));
+          const [x, y] = toScreen(c.x, c.y);
+          // Three edges per hex (top-right, right, bottom-right) draws each edge once.
+          grid.moveTo(x, y - r);
+          grid.lineTo(x + (r * Math.sqrt(3)) / 2, y - r / 2);
+          grid.lineTo(x + (r * Math.sqrt(3)) / 2, y + r / 2);
+          grid.lineTo(x, y + r);
+        }
+      }
+      ctx.strokeStyle = "rgba(0,0,0,0.18)";
+      ctx.lineWidth = 1;
+      ctx.stroke(grid);
+    }
+
+    // Hover outline.
+    if (this.hover) {
+      const c = hexToWorld(this.hover);
+      const [x, y] = toScreen(c.x, c.y);
+      const r = HEX_RADIUS_M * s;
+      ctx.beginPath();
+      for (let k = 0; k < 6; k++) {
+        const a = (Math.PI / 180) * (60 * k - 90);
+        const px = x + r * Math.cos(a);
+        const py = y + r * Math.sin(a);
+        if (k === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    this.drawScaleBar(ctx, h);
+  }
+
+  private drawScaleBar(ctx: CanvasRenderingContext2D, h: number): void {
+    const targetPx = 120;
+    const metres = targetPx / this.scale;
+    const steps = [100, 250, 500, 1000, 2000, 5000, 10000, 20000];
+    const m = steps.find((v) => v >= metres * 0.6) ?? steps.at(-1)!;
+    const px = m * this.scale;
+    const x = 16;
+    const y = h - 20;
+    ctx.fillStyle = "rgba(16,18,20,0.75)";
+    ctx.fillRect(x - 8, y - 22, px + 16 + 40, 34);
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x, y - 6);
+    ctx.lineTo(x, y);
+    ctx.lineTo(x + px, y);
+    ctx.lineTo(x + px, y - 6);
+    ctx.stroke();
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "12px system-ui, sans-serif";
+    ctx.fillText(m >= 1000 ? `${m / 1000} km` : `${m} m`, x + px + 8, y);
+  }
+}
