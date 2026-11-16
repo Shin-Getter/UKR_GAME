@@ -1,6 +1,6 @@
 import { Terrain } from "../src/data/terrain";
 import { HexMap } from "../src/engine/map";
-import { type GameState, newGameState } from "../src/engine/state";
+import { type Element, type GameState, makeElement, newGameState } from "../src/engine/state";
 
 /** A small all-open map for isolated mechanic tests. */
 export function openMap(cols = 40, rows = 40): HexMap {
@@ -21,4 +21,11 @@ export function bareState(map: HexMap): GameState {
     ],
     elements: [],
   });
+}
+
+/** An element at full strength; ua elements belong to unit "u", ru to "r". */
+export function el(id: string, side: "ua" | "ru", typeId: Element["typeId"], hex: number, patrol: number | null = null): Element {
+  const e = makeElement(id, typeId, side, side === "ua" ? "u" : "r", hex);
+  e.patrol = patrol;
+  return e;
 }

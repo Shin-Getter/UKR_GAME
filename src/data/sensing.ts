@@ -23,6 +23,7 @@ export const SIGNATURES: Record<ElementTypeId, Signature> = {
   tankSection: { visual: 1.0, thermal: 1.0, rf: 0.3, acoustic: 0.9 },
   reconDroneCrew: { visual: 0.25, thermal: 0.3, rf: 0.9, acoustic: 0.1 },
   strikeDroneCrew: { visual: 0.25, thermal: 0.3, rf: 0.9, acoustic: 0.1 },
+  bomberDroneCrew: { visual: 0.3, thermal: 0.35, rf: 0.9, acoustic: 0.15 },
   mortarSection: { visual: 0.4, thermal: 0.4, rf: 0.3, acoustic: 0.3 },
   gunSection: { visual: 0.6, thermal: 0.6, rf: 0.3, acoustic: 0.3 },
   ewTeam: { visual: 0.4, thermal: 0.5, rf: 1.0, acoustic: 0.3 },
@@ -30,6 +31,11 @@ export const SIGNATURES: Record<ElementTypeId, Signature> = {
   logisticsSection: { visual: 0.8, thermal: 0.8, rf: 0.3, acoustic: 0.7 },
   hq: { visual: 0.5, thermal: 0.6, rf: 1.0, acoustic: 0.4 },
 };
+
+/** Signature multipliers for the tick an element fires (and the next): muzzle flash, blast, control links. */
+export const FIRING_MULTIPLIER: Signature = { visual: 2, thermal: 2, rf: 2, acoustic: 5 };
+/** How many ticks after firing the firing signature lasts. */
+export const FIRING_SIGNATURE_TICKS = 2;
 
 /** Signature multipliers while moving, by mobility class. */
 export const MOVING_MULTIPLIER: Record<Mobility, Signature> = {
@@ -143,6 +149,7 @@ export const ELEMENT_SENSORS: Record<ElementTypeId, SensorId[]> = {
   tankSection: ["eyes"],
   reconDroneCrew: ["eyes", "reconDrone"],
   strikeDroneCrew: ["eyes"],
+  bomberDroneCrew: ["eyes"],
   mortarSection: ["eyes"],
   gunSection: ["eyes"],
   ewTeam: ["eyes", "rfIntercept"],

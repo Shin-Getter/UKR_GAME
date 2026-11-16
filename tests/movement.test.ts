@@ -6,10 +6,10 @@ import { HEX_FLAT_TO_FLAT_M } from "../src/engine/hex";
 import { beginMove, stepCostM } from "../src/engine/movement";
 import { runTick } from "../src/engine/sim";
 import type { Element, SimEvent } from "../src/engine/state";
-import { bareState, openMap } from "./helpers";
+import { bareState, el, openMap } from "./helpers";
 
 function squadAt(hex: number): Element {
-  return { id: "e1", typeId: "infantrySquad", side: "ua", unitId: "u", hex, personnel: 9, move: null, patrol: null };
+  return el("e1", "ua", "infantrySquad", hex);
 }
 
 describe("movement", () => {

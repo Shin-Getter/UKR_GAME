@@ -1,5 +1,6 @@
-import type { ElementTypeId } from "../data/elements";
+import { ELEMENT_TYPES, type ElementTypeId } from "../data/elements";
 import type { TrackQuality } from "../data/sensing";
+import { ELEMENT_WEAPON, WEAPONS, type WeaponId } from "../data/strikes";
 import { StateHasher } from "./hash";
 import type { HexMap } from "./map";
 import type { Orders } from "./orders";
@@ -41,6 +42,33 @@ export interface Element {
   move: MoveState | null;
   /** Drone crews: hex at the centre of the patrol area, or null. */
   patrol: number | null;
+  /** Operational vehicles. */
+  vehicles: number;
+  /** Munitions left for the element's weapon (0 if it has none). */
+  ammo: number;
+  killed: number;
+  wounded: number;
+  /** Tick the element last fired (raises its signature briefly). */
+  firedTick: number;
+  /** Shooter is busy until this tick. */
+  busyUntil: number;
+  /** Missions launched in the current orders cycle. */
+  missionsToday: number;
+}
+
+/** A strike on its way: resolved at impactTick. */
+export interface Strike {
+  id: number;
+  side: SideId;
+  shooterId: string;
+  weapon: WeaponId;
+  targetHex: number;
+  /** Track (and through it the real element) aimed at. */
+  trackId: string;
+  targetId: string;
+  quality: TrackQuality;
+  launchTick: number;
+  impactTick: number;
 }
 
 /**
@@ -60,9 +88,19 @@ export interface Track {
   qualityTick: number;
   /** Known element type, once Identified. */
   typeId: ElementTypeId | null;
+  /** Tick this side last launched area fire at the contact. */
+  shelledTick: number;
 }
 
-export type SimEventKind = "orderApplied" | "arrived" | "blocked" | "newContact" | "lostContact";
+export type SimEventKind =
+  | "orderApplied"
+  | "arrived"
+  | "blocked"
+  | "newContact"
+  | "lostContact"
+  | "strikeLaunched"
+  | "struck"
+  | "destroyed";
 
 export interface SimEvent {
   tick: number;
@@ -94,6 +132,11 @@ export interface GameState {
   tracks: Record<SideId, Track[]>;
   /** Counters for side-local track ids. */
   trackCounter: Record<SideId, number>;
+  /** Strikes in flight. */
+  strikes: Strike[];
+  strikeCounter: number;
+  /** Elements removed from play (all personnel lost), kept for after-action review. */
+  destroyed: Element[];
   /** Validated orders waiting for the next cycle. */
   pending: Record<SideId, Orders | null>;
   /** Orders actually resolved each cycle: everything a replay needs. */
@@ -118,6 +161,9 @@ export function hashState(state: GameState): string {
     elements: state.elements,
     tracks: state.tracks,
     trackCounter: state.trackCounter,
+    strikes: state.strikes,
+    strikeCounter: state.strikeCounter,
+    destroyed: state.destroyed,
   });
   return new StateHasher().bytes(new TextEncoder().encode(state.map.hash() + dynamic)).digest();
 }
@@ -137,8 +183,34 @@ export function newGameState(init: {
     cycle: 0,
     tracks: { ua: [], ru: [] },
     trackCounter: { ua: 0, ru: 0 },
+    strikes: [],
+    strikeCounter: 0,
+    destroyed: [],
     pending: { ua: null, ru: null },
     history: [],
     lastEvents: [],
+  };
+}
+
+/** A new element of a type at a hex, at full strength. */
+export function makeElement(id: string, typeId: ElementTypeId, side: SideId, unitId: string, hex: number): Element {
+  const type = ELEMENT_TYPES[typeId];
+  const weapon = ELEMENT_WEAPON[typeId];
+  return {
+    id,
+    typeId,
+    side,
+    unitId,
+    hex,
+    personnel: type.personnel,
+    move: null,
+    patrol: null,
+    vehicles: type.vehicles.reduce((n, v) => n + v.count, 0),
+    ammo: weapon ? WEAPONS[weapon].stock : 0,
+    killed: 0,
+    wounded: 0,
+    firedTick: -1000,
+    busyUntil: 0,
+    missionsToday: 0,
   };
 }

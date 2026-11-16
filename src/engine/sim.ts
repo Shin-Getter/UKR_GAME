@@ -7,6 +7,7 @@
 import { TICKS_PER_DAY } from "../data/time";
 import { beginMove, movementSystem } from "./movement";
 import { sensingSystem, trackDecaySystem } from "./sensing";
+import { strikeAllocationSystem, strikeResolutionSystem } from "./strikes";
 import { validateOrders } from "./orders";
 import { hashString, Rng } from "./rng";
 import { type GameState, SIDES, type SimEvent } from "./state";
@@ -27,6 +28,8 @@ export const SYSTEMS: readonly System[] = [
   { name: "movement", run: movementSystem },
   { name: "sensing", run: sensingSystem },
   { name: "tracks", run: trackDecaySystem },
+  { name: "strikeAllocation", run: strikeAllocationSystem },
+  { name: "strikeResolution", run: strikeResolutionSystem },
 ];
 
 function makeContext(state: GameState, system: string, events: SimEvent[]): TickContext {
@@ -70,6 +73,7 @@ export function resolveCycle(state: GameState): SimEvent[] {
   const events: SimEvent[] = [];
   state.history.push({ ua: state.pending.ua, ru: state.pending.ru });
   applyOrders(state, events);
+  for (const el of state.elements) el.missionsToday = 0;
   for (let i = 0; i < TICKS_PER_DAY; i++) runTick(state, events);
   state.cycle++;
   state.pending = { ua: null, ru: null };

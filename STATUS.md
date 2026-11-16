@@ -14,15 +14,16 @@ Handoff file between work sessions. Update it at the end of every slice.
 
 - **Slice 4: sensing and fog of war.** Deterministic `dexp` (`src/engine/dmath.ts`). Signatures per element type and channel (visual, thermal, RF, acoustic) modified by movement, phase of day and terrain concealment (`src/data/sensing.ts`). Sensors: observation (needs line of sight; terrain obstacle heights added), recon drones (patrol area up to 8 km from the crew, grounded while the crew moves), RF direction finding (Suspected only). Per-tick detection rolls; per-side tracks with a quality ladder (Suspected → Detected → Identified → Targetable), decay, and a Targetable fix lost when the target moves. `observe()` returns side-local track reports without the real element id. Patrol orders for drone crews. Coverage heatmap (chance to locate a reference target per hour). UI: viewpoint (Ukraine / Russia with fog of war, or god view), coverage overlay, contact markers by quality, patrol rings, contact events, hover shows contacts and coverage.
 
+- **Slice 5: strikes and ammunition.** Weapons (`src/data/strikes.ts`): FPV, bomber drone, 120 mm mortar, 152/155 mm gun, with range, minimum track quality, latency, cooldown, missions per day, stock, reach, hit chance by track quality, casualties and vehicle-kill chance by protection. Allocation from each side's tracks by default target priority, with overkill and re-shelling limits and no area fire on friendly-occupied hexes (`src/engine/strikes.ts`). Resolution: reach → hit (reduced by terrain cover; precision strikes miss targets that have moved) → effect (killed/wounded, vehicles disabled); elements with no personnel left are removed to `state.destroyed`. Firing raises the shooter's signature for two ticks. Battalion drone company now 2 recon, 3 FPV, 1 bomber crew. Field-crossing calibration micro-test (`tests/fieldCrossing.ts`, probe: `npx tsx scripts/probe-crossing.ts`). UI: losses, ammunition, strength bars, struck/destroyed markers, strike events.
+
 ## Next
 
-- **Slice 5: strikes and ammunition.** Strike drone crews (FPV, bomber), mortars and guns; kill-chain latency and target allocation from Targetable/Detected tracks; reach/hit/effect resolution against protection and cover; casualties and equipment damage; ammunition stocks; the "squad crosses a field under drones" micro-test.
+- **Slice 6: movement modes, control and close combat.** Movement modes (column, dash, tactical, infiltration, static/concealed) trading speed for signature; postures (dug in, concealed); pathfinding; per-hex control gradient (held / contested / infiltrated / fire-dominated); assault and consolidation resolution; suppression and cohesion.
 
 ## Planned slices
 
 | Slice | Ends with |
 | --- | --- |
-| 6 | Movement modes, control gradient, assault and consolidation |
 | 7 | Orders UI and policy editor; hot-seat WEGO play |
 | 8 | After-action causal chains; first two-player playtest |
 
@@ -31,6 +32,8 @@ Handoff file between work sessions. Update it at the end of every slice.
 - Terrain parameters in `src/data/terrain.ts` are placeholders (confidence: guess).
 - Treelines are hex terrain for now; the design doc wants them as hex-edge features eventually.
 - Hot-seat turn handover (hiding one side's screen while the other plans) arrives in slice 7; for now the viewpoint selector is honour-system.
+- No resupply yet: shooters run dry after 3–4 days (logistics comes later). No battle damage assessment: a shooter does not learn what its strike did.
+- First crossing probe (placeholder numbers, 6 h window): squad in the open by day ~6 casualties of 9, along a treeline ~3, open at night ~3.7, assault group along a treeline at night ~0.7; mech section in the open by day loses ~1.8 of 2 vehicles.
 - Sensing has no weather yet, no strike-drone incidental detection, no counter-battery radar, and no posture (dug in / concealed) modifiers; those arrive with strikes (slice 5) and movement modes (slice 6).
 - Overpass API is unreachable from Claude cloud sessions (connection reset). OSM data is exported manually from overpass-turbo.eu into `data/osm/` (see its README); the import script reads those files and caches elevation tiles in `.cache/`.
 - OSM building coverage around Pokrovsk is partial (~10k buildings), so built-up hexes also come from residential/industrial land use.

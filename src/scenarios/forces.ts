@@ -6,12 +6,12 @@
  *
  * Compositions are generic placeholders, not real orders of battle.
  */
-import { ELEMENT_TYPES, type ElementTypeId } from "../data/elements";
+import type { ElementTypeId } from "../data/elements";
 import { Terrain } from "../data/terrain";
 import { axialToOffset } from "../engine/hex";
 import type { HexMap } from "../engine/map";
 import type { Rng } from "../engine/rng";
-import { type Echelon, type Element, SIDE_NAMES, type SideId, type Unit } from "../engine/state";
+import { type Echelon, type Element, makeElement, SIDE_NAMES, type SideId, type Unit } from "../engine/state";
 
 const COVER = new Set([Terrain.Treeline, Terrain.Village, Terrain.Forest, Terrain.Urban]);
 
@@ -54,16 +54,7 @@ export function buildForces(map: HexMap, front: FrontLine, rng: Rng): { units: U
     }
     if (chosen < 0) throw new Error(`could not place ${typeId} for ${side}`);
     counters[side]++;
-    elements.push({
-      id: `${side}-${String(counters[side]).padStart(3, "0")}`,
-      typeId,
-      side,
-      unitId,
-      hex: chosen,
-      personnel: ELEMENT_TYPES[typeId].personnel,
-      move: null,
-      patrol: null,
-    });
+    elements.push(makeElement(`${side}-${String(counters[side]).padStart(3, "0")}`, typeId, side, unitId, chosen));
     return elements.at(-1)!;
   };
 
@@ -92,9 +83,11 @@ export function buildForces(map: HexMap, front: FrontLine, rng: Rng): { units: U
       place(side, coy, "assaultGroup", a, b, 3, 7);
     }
     place(side, bn, "hq", f0, f1, 20, 32);
-    setPatrol(place(side, bn, "reconDroneCrew", f0, f1, 12, 24));
-    place(side, bn, "strikeDroneCrew", f0, f1, 12, 24);
-    place(side, bn, "strikeDroneCrew", f0, f1, 12, 24);
+    // Drone company: 2 recon, 3 FPV, 1 bomber crew (placeholder composition).
+    setPatrol(place(side, bn, "reconDroneCrew", f0, f0 + Math.floor((f1 - f0) / 2), 12, 24));
+    setPatrol(place(side, bn, "reconDroneCrew", f0 + Math.floor((f1 - f0) / 2), f1, 12, 24));
+    for (let k = 0; k < 3; k++) place(side, bn, "strikeDroneCrew", f0, f1, 12, 24);
+    place(side, bn, "bomberDroneCrew", f0, f1, 10, 18);
     place(side, bn, "mortarSection", f0, f1, 10, 18);
     place(side, bn, "ewTeam", f0, f1, 8, 16);
     place(side, bn, "engineerSection", f0, f1, 16, 28);

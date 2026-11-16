@@ -12,6 +12,8 @@ import {
   CHANNELS,
   CONCEALMENT_WEIGHT,
   ELEMENT_SENSORS,
+  FIRING_MULTIPLIER,
+  FIRING_SIGNATURE_TICKS,
   MOVING_MULTIPLIER,
   PHASE_MULTIPLIER,
   type SensorDef,
@@ -36,14 +38,21 @@ import { type Element, type GameState, SIDES, type SideId, type Track } from "./
 const enemyOf = (side: SideId): SideId => (side === "ua" ? "ru" : "ua");
 
 /** Effective signature of an element type at a hex. */
-export function signatureAt(map: HexMap, typeId: Element["typeId"], hex: number, moving: boolean, phase: DayPhase): Signature {
+export function signatureAt(
+  map: HexMap,
+  typeId: Element["typeId"],
+  hex: number,
+  moving: boolean,
+  phase: DayPhase,
+  firing = false,
+): Signature {
   const base = SIGNATURES[typeId];
   const mov = MOVING_MULTIPLIER[ELEMENT_TYPES[typeId].mobility];
   const light = PHASE_MULTIPLIER[phase];
   const conc = TERRAIN[map.terrain[hex] as Terrain].concealment.value;
   const out = { visual: 0, thermal: 0, rf: 0, acoustic: 0 };
   for (const c of CHANNELS) {
-    out[c] = base[c] * (moving ? mov[c] : 1) * light[c] * (1 - conc * CONCEALMENT_WEIGHT[c]);
+    out[c] = base[c] * (moving ? mov[c] : 1) * (firing ? FIRING_MULTIPLIER[c] : 1) * light[c] * (1 - conc * CONCEALMENT_WEIGHT[c]);
   }
   return out;
 }
@@ -115,6 +124,7 @@ function applyDetection(
       lastSeenTick: tick,
       qualityTick: tick,
       typeId: null,
+      shelledTick: -1000,
     };
     tracks.push(track);
     tracks.sort((a, b) => (a.targetId < b.targetId ? -1 : 1));
@@ -138,7 +148,9 @@ export function sensingSystem(state: GameState, ctx: TickContext): void {
   for (const side of SIDES) {
     const enemy = enemyOf(side);
     const targets = state.elements.filter((e) => e.side === enemy);
-    const sigs = targets.map((t) => signatureAt(map, t.typeId, t.hex, t.move !== null, phase));
+    const sigs = targets.map((t) =>
+      signatureAt(map, t.typeId, t.hex, t.move !== null, phase, ctx.tick - t.firedTick < FIRING_SIGNATURE_TICKS),
+    );
     for (const obs of state.elements) {
       if (obs.side !== side) continue;
       for (const sid of ELEMENT_SENSORS[obs.typeId]) {

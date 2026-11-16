@@ -59,6 +59,10 @@ export class MapRenderer {
     trackSide: SideId | null;
     /** Drone patrol radius in hexes. */
     patrolRadiusHex: number;
+    /** Destroyed elements to mark with a cross. */
+    destroyed: Element[];
+    /** Elements hit during the last day (red outline). */
+    struckIds: Set<string>;
   } = {
     elements: [],
     selectedId: null,
@@ -67,6 +71,8 @@ export class MapRenderer {
     tracks: [],
     trackSide: null,
     patrolRadiusHex: 8,
+    destroyed: [],
+    struckIds: new Set(),
   };
   /** Per-hex detection probability overlay (0..1), or null. */
   coverage: Float32Array | null = null;
@@ -455,7 +461,7 @@ export class MapRenderer {
   private drawForces(ctx: CanvasRenderingContext2D, toScreen: (x: number, y: number) => [number, number]): void {
     const { elements, selectedId, pendingTargets } = this.forces;
     this.markerRects = [];
-    if (elements.length === 0 && this.forces.tracks.length === 0) return;
+    if (elements.length === 0 && this.forces.tracks.length === 0 && this.forces.destroyed.length === 0) return;
     const map = this.map;
     const centre = (i: number) => {
       const c = hexToWorld(map.axialOfIndex(i));
@@ -582,6 +588,22 @@ export class MapRenderer {
       }
     }
 
+    // Destroyed elements: grey cross at their last position.
+    ctx.lineWidth = 3;
+    for (const d of this.forces.destroyed) {
+      const [cx, cy] = centre(d.hex);
+      const r = Math.max(4, w * 0.3);
+      ctx.strokeStyle = "rgba(0,0,0,0.7)";
+      ctx.beginPath();
+      ctx.moveTo(cx - r, cy - r); ctx.lineTo(cx + r, cy + r);
+      ctx.moveTo(cx + r, cy - r); ctx.lineTo(cx - r, cy + r);
+      ctx.stroke();
+      ctx.strokeStyle = "#9aa0a6";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.lineWidth = 3;
+    }
+
     // Markers, stacked when several elements share a hex.
     const stackIndex = new Map<number, number>();
     ctx.textAlign = "center";
@@ -595,9 +617,18 @@ export class MapRenderer {
       const y = cy - h / 2 - k * 3;
       ctx.fillStyle = SIDE_COLOR[el.side];
       ctx.fillRect(x, y, w, h);
-      ctx.lineWidth = el.id === selectedId ? 3 : 1.5;
-      ctx.strokeStyle = el.id === selectedId ? "#ffd23f" : "#000000";
+      const struck = this.forces.struckIds.has(el.id);
+      ctx.lineWidth = el.id === selectedId ? 3 : struck ? 2.5 : 1.5;
+      ctx.strokeStyle = el.id === selectedId ? "#ffd23f" : struck ? "#ff2d2d" : "#000000";
       ctx.strokeRect(x, y, w, h);
+      // Strength bar: remaining personnel.
+      if (w >= 14) {
+        const frac = el.personnel / ELEMENT_TYPES[el.typeId].personnel;
+        ctx.fillStyle = "rgba(0,0,0,0.6)";
+        ctx.fillRect(x, y + h + 1, w, 3);
+        ctx.fillStyle = frac > 0.66 ? "#4cd964" : frac > 0.33 ? "#ffcc00" : "#ff3b30";
+        ctx.fillRect(x, y + h + 1, w * frac, 3);
+      }
       if (w >= 24) {
         ctx.fillStyle = "#ffffff";
         ctx.fillText(ELEMENT_TYPES[el.typeId].abbr, x + w / 2, y + h / 2 + 1);

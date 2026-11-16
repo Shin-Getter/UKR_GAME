@@ -8,13 +8,10 @@ import { hasLineOfSight } from "../src/engine/los";
 import { coverageMap, detectionRate, signatureAt, sensingSystem, trackDecaySystem } from "../src/engine/sensing";
 import { runTick, type TickContext } from "../src/engine/sim";
 import { Rng } from "../src/engine/rng";
-import type { Element, GameState, SimEvent } from "../src/engine/state";
+import type { GameState, SimEvent } from "../src/engine/state";
 import { buildTestSector } from "../src/scenarios/testSector";
-import { bareState, openMap } from "./helpers";
+import { bareState, el, openMap } from "./helpers";
 
-function el(id: string, side: "ua" | "ru", typeId: Element["typeId"], hex: number, patrol: number | null = null): Element {
-  return { id, typeId, side, unitId: side === "ua" ? "u" : "r", hex, personnel: 5, move: null, patrol };
-}
 
 function ctxFor(state: GameState, seed: number, events: SimEvent[] = []): TickContext {
   return { tick: state.tick, rng: () => new Rng(seed), emit: (e) => events.push({ tick: state.tick + 1, ...e }) };
@@ -128,7 +125,7 @@ describe("tracks", () => {
     const state = bareState(openMap());
     const target = el("r1", "ru", "mechSection", state.map.index(20, 20));
     state.elements.push(target);
-    state.tracks.ua.push({ id: "ua-T1", targetId: "r1", quality: TrackQuality.Targetable, hex: target.hex, lastSeenTick: 0, qualityTick: 0, typeId: "mechSection" });
+    state.tracks.ua.push({ id: "ua-T1", targetId: "r1", quality: TrackQuality.Targetable, hex: target.hex, lastSeenTick: 0, qualityTick: 0, typeId: "mechSection", shelledTick: -1000 });
     target.hex = state.map.index(21, 20);
     trackDecaySystem(state, ctxFor(state, 1));
     expect(state.tracks.ua[0]!.quality).toBe(TrackQuality.Identified);

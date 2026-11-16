@@ -3,6 +3,8 @@ import { Terrain, TERRAIN } from "../data/terrain";
 import { formatClock, clockAt } from "../engine/clock";
 import { observe, submit } from "../engine/controller";
 import { coverageMap } from "../engine/sensing";
+import { lossSummary } from "../engine/strikes";
+import { ELEMENT_WEAPON, WEAPONS } from "../data/strikes";
 import { ELEMENT_SENSORS, SENSORS, TrackQuality } from "../data/sensing";
 import { type Axial, axialToOffset } from "../engine/hex";
 import { RoadClass } from "../engine/map";
@@ -89,11 +91,20 @@ function refresh(): void {
     tracks: obs ? obs.tracks : [],
     trackSide: obs ? (viewpoint === "ua" ? "ru" : "ua") : null,
     patrolRadiusHex: SENSORS.reconDrone.rangeHex,
+    destroyed: state.destroyed.filter((e) => canControl(e.side)),
+    struckIds: new Set(state.lastEvents.filter((e) => e.kind === "struck" && canControl(e.side)).map((e) => e.elementId)),
   };
   updateCoverage();
   renderer.requestDraw();
 
   $("clock").textContent = formatClock(clockAt(state.tick, state.startHour));
+  $("losses").innerHTML = SIDES.filter(canControl)
+    .map((side) => {
+      const l = lossSummary(state, side);
+      const launched = state.lastEvents.filter((e) => e.kind === "strikeLaunched" && e.side === side).length;
+      return `<dt>${SIDE_NAMES[side]}</dt><dd>${l.killed} killed, ${l.wounded} wounded, ${l.vehiclesLost} vehicles, ${l.elementsDestroyed} elements lost · ${launched} strikes last day</dd>`;
+    })
+    .join("");
   $("orders-summary").textContent = SIDES.filter(canControl)
     .map((s) => `${SIDE_NAMES[s]}: ${drafts[s].size} order(s) queued`)
     .join(" · ");
@@ -117,8 +128,16 @@ function refresh(): void {
       <dt>Type</dt><dd>${esc(type.name)}</dd>
       <dt>Unit</dt><dd>${esc(unit?.name ?? "?")}</dd>
       <dt>Id</dt><dd>${sel.id}</dd>
-      <dt>Personnel</dt><dd>${sel.personnel}</dd>
-      <dt>Vehicles</dt><dd>${type.vehicles.map((v) => `${v.count} × ${esc(v.kind)}`).join(", ") || "none"}</dd>
+      <dt>Personnel</dt><dd>${sel.personnel} of ${type.personnel}${sel.killed + sel.wounded > 0 ? ` (${sel.killed} killed, ${sel.wounded} wounded)` : ""}</dd>
+      <dt>Vehicles</dt><dd>${type.vehicles.length ? `${sel.vehicles} of ${type.vehicles.reduce((n, v) => n + v.count, 0)} operational (${type.vehicles.map((v) => `${v.count} × ${esc(v.kind)}`).join(", ")})` : "none"}</dd>
+      ${(() => {
+        const wid = ELEMENT_WEAPON[sel.typeId];
+        if (!wid) return "";
+        const w = WEAPONS[wid];
+        return `<dt>Weapon</dt><dd>${esc(w.name)}, range ${(w.rangeHex * 0.25).toFixed(0)} km</dd>
+          <dt>Ammunition</dt><dd>${sel.ammo} of ${w.stock} (${Math.floor(sel.ammo / w.perMission)} missions left)</dd>
+          <dt>Missions today</dt><dd>${sel.missionsToday} of ${w.missionsPerDay.value}</dd>`;
+      })()}
       <dt>Speed</dt><dd>${type.speed.value} km/h (${type.mobility})</dd>
       <dt>Sensors</dt><dd>${ELEMENT_SENSORS[sel.typeId].map((id) => esc(SENSORS[id].name)).join("; ")}</dd>
       ${hasDrones(sel.typeId) ? `<dt>Patrol</dt><dd>${patrol}</dd>` : ""}
@@ -131,7 +150,7 @@ function refresh(): void {
   }
 
   const name = (id: string) => {
-    const e = state.elements.find((x) => x.id === id);
+    const e = state.elements.find((x) => x.id === id) ?? state.destroyed.find((x) => x.id === id);
     return e ? `${ELEMENT_TYPES[e.typeId].name} ${e.id}` : id;
   };
   $("events").innerHTML =
@@ -141,6 +160,9 @@ function refresh(): void {
         const c = clockAt(e.tick, state.startHour);
         const t = `${String(c.hour).padStart(2, "0")}:${String(c.minute).padStart(2, "0")}`;
         const who = viewpoint === "god" ? `${SIDE_NAMES[e.side]}: ` : "";
+        if (e.kind === "strikeLaunched") return `<li class="${e.side}">${t} ${who}${esc(name(e.elementId))}: ${esc(e.note ?? "")}</li>`;
+        if (e.kind === "struck") return `<li class="hit">${t} ${who}${esc(name(e.elementId))} hit: ${esc(e.note ?? "")}</li>`;
+        if (e.kind === "destroyed") return `<li class="hit">${t} ${who}${esc(name(e.elementId))} destroyed</li>`;
         if (e.kind === "newContact" || e.kind === "lostContact") {
           return `<li class="contact">${t} ${who}${e.kind === "newContact" ? "new contact" : "lost contact"} ${e.elementId}</li>`;
         }
