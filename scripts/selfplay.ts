@@ -46,6 +46,7 @@ const [argScenario, argSeed, argDays] = process.argv.slice(2);
 const games: [string, number, number][] = argScenario
   ? [[argScenario, Number(argSeed ?? 1), Number(argDays ?? 7)]]
   : [
+      ["pokrovsk-2024", 4, 14],
       ["pokrovsk-2024", 1, 7],
       ["pokrovsk-2024", 2, 7],
       ["test-sector", 3, 7],

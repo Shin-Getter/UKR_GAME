@@ -20,15 +20,16 @@ Handoff file between work sessions. Update it at the end of every slice.
 
 - **Slice 5c: close combat, interaction lines, stacks.** Entering an enemy-held hex is an assault (the mover stops). `closeCombatSystem` (`src/engine/closeCombat.ts`, data in `src/data/combat.ts`): each tick, hexes with both sides fight; casualties scale with combat power (people and vehicles weighted by type) and are reduced by cover (first occupant defends with full cover, attacker gets 30%); a side below half the enemy's power pulls back to a neighbouring enemy-free hex; close contact reveals both sides as Targetable. Events carry `fromHex`. UI: strike lines (area fire with dispersion circle), spotting lines, impact bursts, close-combat rings and pull-back arrows, fading over the last hour in replays and shown faintly for the whole day in live play (toggle in View); stacked units fan out in a grid when zoomed in, show a count badge when zoomed out, cycle on repeated clicks and are listed in the selected-unit panel.
 
+- **Slice 6: movement modes, digging in, pathfinding, control, suppression and cohesion.** A* pathfinding (`src/engine/pathfind.ts`) with mode-dependent route choice. Movement modes (`src/data/movement.ts`): tactical, column (fast, visible), dash (2x speed), infiltrate (foot, ≤6 people, 0.25x speed, 0.3x signature, hugs cover). Elements dig in while stationary (8 h foot, 12 h vehicles; lost on moving) for cover and lower signature; scenarios start dug in. Suppression from hits and close combat (pinned elements neither move nor fire) decays each tick; cohesion falls with casualties and recovers when quiet; close combat power scales with both and a side breaks on low power ratio or low cohesion (`src/engine/fieldworks.ts`). Control map (`src/engine/control.ts`): held / contested / none from element presence (side views use located contacts for the enemy). Bot infiltrates with small groups. UI: movement mode picker, dig/suppression/cohesion readout, control overlay. 14-day example replay added.
+
 ## Next
 
-- **Slice 6: movement modes, posture and control.** Movement modes (column, dash, tactical, infiltration, static/concealed) trading speed for signature; postures (dug in, concealed); pathfinding; per-hex control gradient (held / contested / infiltrated / fire-dominated); consolidation; suppression and cohesion (close combat breaks on power ratio only for now).
+- **Slice 7: orders UI and policies; hot-seat.** Company/battalion-level orders, target-priority rule editor and posture triggers (design doc "Policies, not micromanagement"), hot-seat turn handover screen hiding the other side, first two-player playtest.
 
 ## Planned slices
 
 | Slice | Ends with |
 | --- | --- |
-| 7 | Orders UI and policy editor; hot-seat WEGO play |
 | 8 | After-action causal chains; first two-player playtest |
 
 ## Known issues / notes
@@ -38,7 +39,8 @@ Handoff file between work sessions. Update it at the end of every slice.
 - The prober bot is deliberately naive (sends a couple of infantry elements forward each day). It exists to exercise the interface and make example replays, not to play well.
 - Hot-seat turn handover (hiding one side's screen while the other plans) arrives in slice 7; for now the viewpoint selector is honour-system.
 - No resupply yet: shooters run dry after 3–4 days (logistics comes later). No battle damage assessment: a shooter does not learn what its strike did.
-- First crossing probe (placeholder numbers, 6 h window): squad in the open by day ~6 casualties of 9, along a treeline ~3, open at night ~3.7, assault group along a treeline at night ~0.7; mech section in the open by day loses ~1.8 of 2 vehicles.
+- Crossing probe after slice 6 (placeholder numbers, 6 h window incl. digging in on arrival): squad open by day ~4.7 casualties of 9, treeline by day ~2.8, open at night ~2.7; assault group treeline at night ~0.65, infiltrating ~0.08; mech section open by day ~1.7 of 2 vehicles lost.
+- "Fire-dominated" ground (no one present but covered by fires) is not yet a control state; consolidation emerges from dig-in reset rather than a separate rule.
 - Sensing has no weather yet, no strike-drone incidental detection, no counter-battery radar, and no posture (dug in / concealed) modifiers; those arrive with strikes (slice 5) and movement modes (slice 6).
 - Overpass API is unreachable from Claude cloud sessions (connection reset). OSM data is exported manually from overpass-turbo.eu into `data/osm/` (see its README); the import script reads those files and caches elevation tiles in `.cache/`.
 - OSM building coverage around Pokrovsk is partial (~10k buildings), so built-up hexes also come from residential/industrial land use.

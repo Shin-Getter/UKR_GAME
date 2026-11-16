@@ -89,6 +89,8 @@ export class MapRenderer {
   };
   /** Per-hex detection probability overlay (0..1), or null. */
   coverage: Float32Array | null = null;
+  /** Control of ground per hex (Control enum values), or null. */
+  control: Uint8Array | null = null;
   /** Things happening: drawn as lines, bursts and rings, alpha fading with age. */
   interactions: Interaction[] = [];
   /** Place names to label, and the (illustrative) line of contact to draw. */
@@ -374,12 +376,45 @@ export class MapRenderer {
       ctx.stroke();
     }
 
+    this.drawControl(ctx, toScreen, row0, row1, col0, col1, corners);
     this.drawCoverage(ctx, toScreen, row0, row1, col0, col1, corners);
     this.drawFront(ctx, toScreen);
     this.drawForces(ctx, toScreen);
     this.drawInteractions(ctx, toScreen);
     this.drawPlaces(ctx, toScreen);
     this.drawScaleBar(ctx, h);
+  }
+
+  private drawControl(
+    ctx: CanvasRenderingContext2D,
+    toScreen: (x: number, y: number) => [number, number],
+    row0: number,
+    row1: number,
+    col0: number,
+    col1: number,
+    corners: [number, number][],
+  ): void {
+    const ctl = this.control;
+    if (!ctl) return;
+    const paths = [new Path2D(), new Path2D(), new Path2D()]; // ua, ru, contested
+    for (let row = row0; row <= row1; row++) {
+      for (let col = col0; col <= col1; col++) {
+        const v = ctl[this.map.index(col, row)]!;
+        if (v === 0) continue;
+        const c = hexToWorld(offsetToAxial({ col, row }));
+        const [x, y] = toScreen(c.x, c.y);
+        const p = paths[v - 1]!;
+        p.moveTo(x + corners[0]![0], y + corners[0]![1]);
+        for (let k = 1; k < 6; k++) p.lineTo(x + corners[k]![0], y + corners[k]![1]);
+        p.closePath();
+      }
+    }
+    ctx.fillStyle = "rgba(47,111,214,0.42)";
+    ctx.fill(paths[0]!);
+    ctx.fillStyle = "rgba(200,53,47,0.42)";
+    ctx.fill(paths[1]!);
+    ctx.fillStyle = "rgba(160,60,200,0.5)";
+    ctx.fill(paths[2]!);
   }
 
   private drawCoverage(

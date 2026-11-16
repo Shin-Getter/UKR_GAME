@@ -4,6 +4,10 @@ import { formatClock, clockAt } from "../engine/clock";
 import { observe, submit } from "../engine/controller";
 import { coverageMap } from "../engine/sensing";
 import { lossSummary } from "../engine/strikes";
+import { controlMap, presenceOf } from "../engine/control";
+import { MOVE_MODE_DEFS, MOVE_MODES, type MoveMode } from "../data/movement";
+import { PINNED_AT } from "../data/combat";
+import { Mobility } from "../data/elements";
 import { ELEMENT_WEAPON, WEAPONS } from "../data/strikes";
 import { ELEMENT_SENSORS, SENSORS, TrackQuality } from "../data/sensing";
 import { type Axial, axialToOffset } from "../engine/hex";
@@ -36,6 +40,18 @@ let state: GameState = scenario.build(initialSeed);
 let drafts: Record<SideId, Map<string, Order>> = { ua: new Map(), ru: new Map() };
 let selectedId: string | null = null;
 let moveMode = false;
+/** Movement mode applied to the next move orders. */
+let orderMode: MoveMode = "tactical";
+
+/** Modes the element may use. */
+function modesFor(e: { typeId: keyof typeof ELEMENT_TYPES; personnel: number }): MoveMode[] {
+  return MOVE_MODES.filter((m) => {
+    const d = MOVE_MODE_DEFS[m];
+    if (d.footOnly && ELEMENT_TYPES[e.typeId].mobility !== Mobility.Foot) return false;
+    if (d.maxPersonnel !== undefined && e.personnel > d.maxPersonnel) return false;
+    return true;
+  });
+}
 type Viewpoint = SideId | "god";
 let viewpoint: Viewpoint = (params.get("view") as Viewpoint) ?? "ua";
 $<HTMLSelectElement>("viewpoint").value = viewpoint;
@@ -145,6 +161,13 @@ function refresh(): void {
     destroyed: state.destroyed.filter((e) => canControl(e.side)),
     struckIds: new Set(state.lastEvents.filter((e) => e.kind === "struck" && canControl(e.side)).map((e) => e.elementId)),
   };
+  renderer.control = $<HTMLInputElement>("control").checked
+    ? controlMap(state.map, [
+        ...renderer.forces.elements.map((e) => ({ side: e.side, hex: e.hex, weight: presenceOf(e) })),
+        // Side views: the enemy's presence as far as our located contacts show it.
+        ...(obs ? obs.tracks.filter((t) => t.quality >= TrackQuality.Detected).map((t) => ({ side: (viewpoint === "ua" ? "ru" : "ua") as SideId, hex: t.hex, weight: 0.5 })) : []),
+      ])
+    : null;
   renderer.interactions = computeInteractions(
     new Set(renderer.forces.elements.map((e) => e.id)),
     new Set((obs ? obs.tracks : []).map((t) => t.hex)),
@@ -171,9 +194,9 @@ function refresh(): void {
     const o = axialToOffset(state.map.axialOfIndex(sel.hex));
     const draft = drafts[sel.side].get(sel.id);
     const status =
-      draft?.kind === "move" ? `move queued to ${draft.to.col}, ${draft.to.row}`
+      draft?.kind === "move" ? `${MOVE_MODE_DEFS[draft.mode ?? "tactical"].name.toLowerCase()} move queued to ${draft.to.col}, ${draft.to.row}`
       : draft?.kind === "patrol" ? `new patrol area queued at ${draft.at.col}, ${draft.at.row}`
-      : sel.move ? "moving" : "holding";
+      : sel.move ? `moving (${MOVE_MODE_DEFS[sel.move.mode].name.toLowerCase()})` : "holding";
     const patrol = sel.patrol === null ? "none" : (() => {
       const p = axialToOffset(state.map.axialOfIndex(sel.patrol));
       return `centred on ${p.col}, ${p.row}${sel.move ? " (grounded while moving)" : ""}`;
@@ -197,8 +220,15 @@ function refresh(): void {
       <dt>Sensors</dt><dd>${ELEMENT_SENSORS[sel.typeId].map((id) => esc(SENSORS[id].name)).join("; ")}</dd>
       ${hasDrones(sel.typeId) ? `<dt>Patrol</dt><dd>${patrol}</dd>` : ""}
       <dt>Hex</dt><dd>${o.col}, ${o.row}</dd>
+      <dt>Dug in</dt><dd>${Math.round(sel.dig * 100)}%</dd>
+      <dt>Suppression</dt><dd>${Math.round(sel.suppression * 100)}%${sel.suppression >= PINNED_AT.value ? " (pinned)" : ""}</dd>
+      <dt>Cohesion</dt><dd>${Math.round(sel.cohesion * 100)}%</dd>
       <dt>Status</dt><dd>${status}</dd>
     </dl>
+    <div class="modes">${modesFor(sel)
+      .map((m) => `<button class="mode-pick${m === orderMode ? " current" : ""}" data-mode="${m}" title="${esc(MOVE_MODE_DEFS[m].description)}">${MOVE_MODE_DEFS[m].name}</button>`)
+      .join("")}</div>
+    <p class="sub">Movement mode for the next move order: ${esc(MOVE_MODE_DEFS[orderMode].description)}</p>
     ${(() => {
       const stack = stackAt(sel.hex);
       if (stack.length < 2) return "";
@@ -295,8 +325,9 @@ function issueOrder(hex: Axial, forceMove = false): void {
     return;
   }
   const at = axialToOffset(hex);
+  const mode = modesFor(sel).includes(orderMode) ? orderMode : "tactical";
   const order: Order =
-    hasDrones(sel.typeId) && !forceMove ? { kind: "patrol", elementId: sel.id, at } : { kind: "move", elementId: sel.id, to: at };
+    hasDrones(sel.typeId) && !forceMove ? { kind: "patrol", elementId: sel.id, at } : { kind: "move", elementId: sel.id, to: at, mode };
   drafts[sel.side].set(sel.id, order);
   message("");
   refresh();
@@ -319,6 +350,12 @@ renderer.onClick = (elementId, hex) => {
   refresh();
 };
 $("selected").addEventListener("click", (e) => {
+  const m = (e.target as HTMLElement).closest<HTMLElement>(".mode-pick");
+  if (m?.dataset.mode) {
+    orderMode = m.dataset.mode as MoveMode;
+    refresh();
+    return;
+  }
   const b = (e.target as HTMLElement).closest<HTMLElement>(".stack-pick");
   if (!b?.dataset.id) return;
   selectedId = b.dataset.id;
@@ -385,7 +422,7 @@ $("viewpoint").addEventListener("change", () => {
   history.replaceState(null, "", url);
   refresh();
 });
-for (const id of ["coverage", "coverage-side", "interactions"]) $(id).addEventListener("change", () => refresh());
+for (const id of ["coverage", "coverage-side", "interactions", "control"]) $(id).addEventListener("change", () => refresh());
 
 $("move-mode").addEventListener("click", () => {
   moveMode = !moveMode;
@@ -560,6 +597,7 @@ $("legend").innerHTML =
   `<li><span class="heat"></span>Chance to locate an enemy target per hour</li>` +
   `<li><span class="line" style="background:${SIDE_COLOR.ua}"></span>Strike (arrow; dashed circle = area fire) · dotted = spotted</li>` +
   `<li><span class="ring" style="color:#ff2d2d;border-style:solid"></span>Close combat in this hex</li>` +
+  `<li><span class="swatch" style="background:rgba(47,111,214,0.45)"></span><span class="swatch" style="background:rgba(200,53,47,0.45)"></span><span class="swatch" style="background:repeating-linear-gradient(45deg,#c8352f 0 3px,#2f6fd6 3px 6px)"></span>Control: held · held · contested</li>` +
   `<li>Badge number = units stacked in a hex (zoom in to spread them, click again to cycle)</li>` +
   `<li>Contacts: dashed ring = suspected · dashed box = detected · solid = identified · corner marks = targetable</li>` +
   `<li><span class="swatch" style="background:${SIDE_COLOR.ru}"></span>Russia unit</li>` +

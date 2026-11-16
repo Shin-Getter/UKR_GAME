@@ -67,3 +67,6 @@ select { flex: 1; background: var(--bg); color: var(--text); border: 1px solid v
 select { min-width: 0; }
 .stack-pick { font-size: 11px; padding: 2px 6px; margin: 2px 2px 0 0; }
 .stack-pick.current { border-color: #ffd23f; background: #4a4214; }
+.modes { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 8px; }
+.mode-pick { flex: 1; font-size: 12px; padding: 4px 6px; }
+.mode-pick.current { border-color: #ffd23f; background: #4a4214; }
