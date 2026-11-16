@@ -3,7 +3,8 @@
  * It sees only its side's Observation (plus the public map) and each day:
  *  - points each recon drone at the freshest located contact within reach;
  *  - sends one or two infantry elements forward towards the enemy (to the
- *    nearest located contact, or a few hexes towards the average contact).
+ *    nearest located contact, or a few hexes towards the average contact);
+ *    groups of six or fewer infiltrate, larger ones move tactically.
  * Everything else holds. It plays through the same controller interface an
  * AI or the UI uses.
  */
@@ -62,7 +63,9 @@ export function proberOrders(obs: Observation, map: HexMap, seed: number, option
         to = { col: Math.round(from.col + (dc / len) * step), row: Math.round(from.row + (dr / len) * step) };
       }
       to = { col: Math.max(0, Math.min(map.cols - 1, to.col)), row: Math.max(0, Math.min(map.rows - 1, to.row)) };
-      orders.push({ kind: "move", elementId: e.id, to });
+      // Small groups infiltrate along cover; squads move tactically.
+      const mode = e.personnel <= 6 ? "infiltrate" : "tactical";
+      orders.push({ kind: "move", elementId: e.id, to, mode });
     }
   }
   return { side: obs.side, cycle: obs.cycle, orders };

@@ -90,7 +90,7 @@ describe("detection", () => {
     for (let s = 0; s < 200; s++) sensingSystem(state, ctxFor(state, s));
     expect(state.tracks.ua).toHaveLength(0);
     crew.patrol = target.hex;
-    crew.move = { path: [crew.hex, crew.hex - 1], step: 0, progressM: 0 };
+    crew.move = { mode: "tactical", path: [crew.hex, crew.hex - 1], step: 0, progressM: 0 };
     for (let s = 0; s < 200; s++) sensingSystem(state, ctxFor(state, s));
     expect(state.tracks.ua).toHaveLength(0);
   });

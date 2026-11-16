@@ -13,6 +13,7 @@ describe("field crossing under drones", () => {
   const squadTreeDay = crossingStats({ typeId: "infantrySquad", hour: 11, routeTerrain: Terrain.Treeline, distanceHex: 12 }, runs);
   const squadOpenNight = crossingStats({ typeId: "infantrySquad", hour: 1, routeTerrain: Terrain.Open, distanceHex: 12 }, runs);
   const groupTreeNight = crossingStats({ typeId: "assaultGroup", hour: 1, routeTerrain: Terrain.Treeline, distanceHex: 12 }, runs);
+  const groupInfiltrate = crossingStats({ typeId: "assaultGroup", hour: 1, routeTerrain: Terrain.Treeline, distanceHex: 12, mode: "infiltrate" }, runs);
   const mechOpenDay = crossingStats({ typeId: "mechSection", hour: 11, routeTerrain: Terrain.Open, distanceHex: 12 }, runs);
 
   it("punishes a squad in open ground by day", () => {
@@ -29,6 +30,10 @@ describe("field crossing under drones", () => {
     expect(groupTreeNight.meanCasualties).toBeLessThan(squadTreeDay.meanCasualties);
     expect(groupTreeNight.meanCasualties).toBeLessThan(squadOpenNight.meanCasualties);
     expect(groupTreeNight.pHit).toBeLessThan(0.5);
+  });
+
+  it("makes infiltration (slow, low signature) safer still", () => {
+    expect(groupInfiltrate.meanCasualties).toBeLessThan(groupTreeNight.meanCasualties);
   });
 
   it("costs a mechanised section most of its vehicles in the open by day", () => {

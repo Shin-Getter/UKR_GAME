@@ -7,7 +7,16 @@
  * pulls back to a neighbouring hex free of enemies. Fighting at close range
  * also reveals each side to the other.
  */
-import { ATTACKER_COVER_SHARE, BREAK_RATIO, CLOSE_COMBAT_LETHALITY, PERSON_WEIGHT, VEHICLE_WEIGHT } from "../data/combat";
+import {
+  ATTACKER_COVER_SHARE,
+  BREAK_COHESION,
+  BREAK_RATIO,
+  CLOSE_COMBAT_LETHALITY,
+  PERSON_WEIGHT,
+  SUPPRESSION_PER_CC_CASUALTY,
+  VEHICLE_WEIGHT,
+} from "../data/combat";
+import { effectiveCover } from "./fieldworks";
 import { TrackQuality } from "../data/sensing";
 import { TERRAIN, type Terrain } from "../data/terrain";
 import { hexDistance, neighbors } from "./hex";
@@ -17,9 +26,13 @@ import type { TickContext } from "./sim";
 import { type Element, type GameState, SIDES, type SideId } from "./state";
 import { applyCasualties, removeDestroyed } from "./strikes";
 
+/** Combat power: people and vehicles weighted by type, reduced by suppression and low cohesion. */
 export function combatPower(els: readonly Element[]): number {
   let p = 0;
-  for (const e of els) p += e.personnel * PERSON_WEIGHT[e.typeId] + e.vehicles * (VEHICLE_WEIGHT[e.typeId] ?? 0);
+  for (const e of els) {
+    const raw = e.personnel * PERSON_WEIGHT[e.typeId] + e.vehicles * (VEHICLE_WEIGHT[e.typeId] ?? 0);
+    p += raw * (1 - 0.5 * e.suppression) * (0.5 + 0.5 * e.cohesion);
+  }
   return p;
 }
 
@@ -80,16 +93,19 @@ export function closeCombatSystem(state: GameState, ctx: TickContext): void {
     // Both sides see everything in the hex.
     for (const side of SIDES) for (const enemy of g[side === "ua" ? "ru" : "ua"]) applyDetection(state, side, enemy, TrackQuality.Targetable, ctx, rng, hex);
 
-    const cover = TERRAIN[state.map.terrain[hex] as Terrain].cover.value;
     const since = (side: SideId) => Math.min(...g[side].map((e) => e.hexSince));
     const defender: SideId | null = since("ua") < since("ru") ? "ua" : since("ru") < since("ua") ? "ru" : null;
-    const coverOf = (side: SideId) => (side === defender ? cover : cover * ATTACKER_COVER_SHARE.value);
+    // Defenders fight from their full cover (terrain plus field fortification); attackers get a share of the terrain.
+    const avgCover = (side: SideId) => g[side].reduce((n, e) => n + effectiveCover(state.map, e), 0) / g[side].length;
+    const terrainCover = TERRAIN[state.map.terrain[hex] as Terrain].cover.value;
+    const coverOf = (side: SideId) => (side === defender ? avgCover(side) : terrainCover * ATTACKER_COVER_SHARE.value);
     const power = { ua: combatPower(g.ua), ru: combatPower(g.ru) };
     const dealt: Record<SideId, number> = { ua: 0, ru: 0 };
     for (const side of SIDES) {
       const enemy: SideId = side === "ua" ? "ru" : "ua";
       const expected = CLOSE_COMBAT_LETHALITY.value * power[enemy] * (1 - coverOf(side));
       dealt[side] = distribute(g[side], roundStochastic(expected, rng), rng);
+      for (const e of g[side]) e.suppression = Math.min(1, e.suppression + (dealt[side] / g[side].length) * SUPPRESSION_PER_CC_CASUALTY.value + 0.1);
     }
     for (const side of SIDES) {
       if (dealt[side] > 0) {
@@ -104,10 +120,14 @@ export function closeCombatSystem(state: GameState, ctx: TickContext): void {
     }
 
     // Break: the side clearly losing the firefight pulls back.
-    const after = { ua: combatPower(g.ua.filter((e) => e.personnel > 0)), ru: combatPower(g.ru.filter((e) => e.personnel > 0)) };
+    const alive = (side: SideId) => g[side].filter((e) => e.personnel > 0);
+    const after = { ua: combatPower(alive("ua")), ru: combatPower(alive("ru")) };
+    const cohesion = (side: SideId) => alive(side).reduce((n, e) => n + e.cohesion, 0) / Math.max(1, alive(side).length);
     for (const side of SIDES) {
       const enemy: SideId = side === "ua" ? "ru" : "ua";
-      if (after[side] > 0 && after[side] < BREAK_RATIO.value * after[enemy]) {
+      const outgunned = after[side] < BREAK_RATIO.value * after[enemy];
+      const shaken = cohesion(side) < BREAK_COHESION.value && after[enemy] > 0;
+      if (after[side] > 0 && (outgunned || shaken)) {
         const to = fallbackHex(state, side, hex);
         if (to === null) continue; // nowhere to go: fight on
         for (const e of g[side]) {

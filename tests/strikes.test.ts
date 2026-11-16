@@ -45,7 +45,7 @@ describe("strike allocation", () => {
     strikeAllocationSystem(state, ctxAt(state, 40, 2));
     expect(state.strikes).toHaveLength(0); // mortar still busy
     mortar.busyUntil = 0;
-    mortar.move = { path: [mortar.hex, mortar.hex + 1], step: 0, progressM: 0 };
+    mortar.move = { mode: "tactical", path: [mortar.hex, mortar.hex + 1], step: 0, progressM: 0 };
     strikeAllocationSystem(state, ctxAt(state, 41, 3));
     expect(state.strikes).toHaveLength(0); // moving: cannot fire
     state.tracks.ru[0]!.hex = state.map.index(20, 39);

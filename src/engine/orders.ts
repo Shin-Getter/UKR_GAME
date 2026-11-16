@@ -1,11 +1,13 @@
 import { ELEMENT_SENSORS, SENSORS } from "../data/sensing";
+import { ELEMENT_TYPES, Mobility } from "../data/elements";
+import { MOVE_MODE_DEFS, type MoveMode } from "../data/movement";
 import { TERRAIN } from "../data/terrain";
 import { hexDistance, offsetToAxial } from "./hex";
 import type { Offset } from "./hex";
 import type { GameState, SideId } from "./state";
 
 export type Order =
-  | { kind: "move"; elementId: string; to: Offset }
+  | { kind: "move"; elementId: string; to: Offset; mode?: MoveMode }
   | { kind: "hold"; elementId: string }
   /** Drone crews: centre of the area the drones patrol. */
   | { kind: "patrol"; elementId: string; at: Offset };
@@ -55,6 +57,19 @@ export function validateOrders(state: GameState, orders: Orders): ValidationResu
     if (order.kind === "move") {
       if (!state.map.inBounds(order.to.col, order.to.row)) {
         rejected.push({ order, reason: "destination is off the map" });
+        continue;
+      }
+      const def = order.mode ? MOVE_MODE_DEFS[order.mode] : undefined;
+      if (order.mode && !def) {
+        rejected.push({ order, reason: `unknown movement mode ${order.mode}` });
+        continue;
+      }
+      if (def?.footOnly && ELEMENT_TYPES[el.typeId].mobility !== Mobility.Foot) {
+        rejected.push({ order, reason: `${def.name} is for troops on foot only` });
+        continue;
+      }
+      if (def?.maxPersonnel !== undefined && el.personnel > def.maxPersonnel) {
+        rejected.push({ order, reason: `${def.name} needs a group of at most ${def.maxPersonnel} (element has ${el.personnel})` });
         continue;
       }
       const t = state.map.terrainAt(order.to.col, order.to.row);

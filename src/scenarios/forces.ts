@@ -99,5 +99,7 @@ export function buildForces(map: HexMap, front: FrontLine, rng: Rng): { units: U
     for (let s = 0; s < 3; s++) place(side, res, "mechSection", f0, f1, 36, 52);
     place(side, res, "tankSection", f0, f1, 36, 52);
   }
+  // A static front: everyone starts in prepared positions.
+  for (const e of elements) e.dig = 1;
   return { units, elements };
 }

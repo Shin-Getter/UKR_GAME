@@ -1,13 +1,16 @@
 /**
- * Basic movement: elements walk a straight hex line towards their
- * destination, paying terrain and road costs. A placeholder for the full
- * movement modes (infiltration, dashes, columns) planned for slice 6.
+ * Movement: elements follow an A* path to their destination in one of four
+ * modes (tactical, column, dash, infiltrate) that trade speed for signature
+ * and route choice. Pinned elements do not move; moving loses any field
+ * fortification; entering an enemy-held hex is an assault and stops the move.
  */
 import { ELEMENT_TYPES, Mobility } from "../data/elements";
-import { ROAD_COST, WHEELED_OFFROAD_PENALTY } from "../data/movement";
+import { MOVE_MODE_DEFS, type MoveMode, ROAD_COST, WHEELED_OFFROAD_PENALTY } from "../data/movement";
+import { PINNED_AT } from "../data/combat";
 import { TERRAIN, type Terrain } from "../data/terrain";
 import { TICKS_PER_HOUR } from "../data/time";
-import { DIRECTIONS, HEX_FLAT_TO_FLAT_M, hexLine } from "./hex";
+import { DIRECTIONS, HEX_FLAT_TO_FLAT_M } from "./hex";
+import { findPath } from "./pathfind";
 import type { HexMap } from "./map";
 import type { Element, GameState } from "./state";
 import type { TickContext } from "./sim";
@@ -33,13 +36,11 @@ export function stepCostM(map: HexMap, a: number, b: number, mobility: Mobility)
   return HEX_FLAT_TO_FLAT_M * mult;
 }
 
-/** Start a move: compute the path from the element's hex to the destination. */
-export function beginMove(state: GameState, el: Element, destination: number): void {
-  const map = state.map;
-  const path = hexLine(map.axialOfIndex(el.hex), map.axialOfIndex(destination))
-    .map((h) => map.indexOfAxial(h))
-    .filter((i) => i >= 0);
-  el.move = path.length > 1 ? { path, step: 0, progressM: 0 } : null;
+/** Start a move: find a path from the element's hex to the destination. Returns false if unreachable. */
+export function beginMove(state: GameState, el: Element, destination: number, mode: MoveMode = "tactical"): boolean {
+  const path = findPath(state.map, el.hex, destination, ELEMENT_TYPES[el.typeId].mobility, mode);
+  el.move = path && path.length > 1 ? { mode, path, step: 0, progressM: 0 } : null;
+  return path !== null;
 }
 
 export function movementSystem(state: GameState, ctx: TickContext): void {
@@ -47,7 +48,8 @@ export function movementSystem(state: GameState, ctx: TickContext): void {
     const move = el.move;
     if (!move) continue;
     const type = ELEMENT_TYPES[el.typeId];
-    move.progressM += (type.speed.value * 1000) / TICKS_PER_HOUR;
+    if (el.suppression >= PINNED_AT.value) continue; // pinned: heads down, no progress
+    move.progressM += (type.speed.value * MOVE_MODE_DEFS[move.mode].speed * 1000) / TICKS_PER_HOUR;
     for (;;) {
       const next = move.path[move.step + 1];
       if (next === undefined) {
@@ -65,6 +67,7 @@ export function movementSystem(state: GameState, ctx: TickContext): void {
       move.step++;
       el.hex = next;
       el.hexSince = ctx.tick + 1;
+      el.dig = 0;
       // Entering a hex held by the enemy is an assault: the element stops and close combat follows.
       if (state.elements.some((o) => o.side !== el.side && o.hex === next && o.personnel > 0)) {
         el.move = null;

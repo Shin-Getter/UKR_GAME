@@ -9,6 +9,7 @@ import { beginMove, movementSystem } from "./movement";
 import { sensingSystem, trackDecaySystem } from "./sensing";
 import { strikeAllocationSystem, strikeResolutionSystem } from "./strikes";
 import { closeCombatSystem } from "./closeCombat";
+import { fieldworksSystem, moraleSystem } from "./fieldworks";
 import { validateOrders } from "./orders";
 import { hashString, Rng } from "./rng";
 import { type GameState, SIDES, type SimEvent } from "./state";
@@ -32,6 +33,8 @@ export const SYSTEMS: readonly System[] = [
   { name: "strikeAllocation", run: strikeAllocationSystem },
   { name: "strikeResolution", run: strikeResolutionSystem },
   { name: "closeCombat", run: closeCombatSystem },
+  { name: "fieldworks", run: fieldworksSystem },
+  { name: "morale", run: moraleSystem },
 ];
 
 function makeContext(state: GameState, system: string, events: SimEvent[]): TickContext {
@@ -59,7 +62,7 @@ function applyOrders(state: GameState, events: SimEvent[]): void {
     for (const order of validateOrders(state, orders).accepted) {
       const el = state.elements.find((e) => e.id === order.elementId)!;
       if (order.kind === "move") {
-        beginMove(state, el, state.map.index(order.to.col, order.to.row));
+        beginMove(state, el, state.map.index(order.to.col, order.to.row), order.mode ?? "tactical");
       } else if (order.kind === "patrol") {
         el.patrol = state.map.index(order.at.col, order.at.row);
       } else {

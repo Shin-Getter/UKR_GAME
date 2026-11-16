@@ -18,6 +18,8 @@ export interface CrossingSetup {
   /** Hexes to cross (250 m each). */
   distanceHex: number;
   seed: number;
+  /** Movement mode (default tactical). */
+  mode?: "tactical" | "column" | "dash" | "infiltrate";
 }
 
 export interface CrossingResult {
@@ -53,7 +55,7 @@ export function runCrossing(setup: CrossingSetup): CrossingResult {
     el("r4", "ru", "bomberDroneCrew", map.index(col - 1, 10)),
     el("r5", "ru", "mortarSection", map.index(col + 1, 12)),
   );
-  beginMove(state, mover, map.index(col, endRow));
+  beginMove(state, mover, map.index(col, endRow), setup.mode ?? "tactical");
   const events: SimEvent[] = [];
   const startPersonnel = mover.personnel;
   const startVehicles = mover.vehicles;

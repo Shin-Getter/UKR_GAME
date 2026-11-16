@@ -25,6 +25,7 @@ import {
   TrackQuality,
 } from "../data/sensing";
 import { TERRAIN, type Terrain } from "../data/terrain";
+import { DIG_SIGNATURE_REDUCTION, MOVE_MODE_DEFS } from "../data/movement";
 import type { DayPhase } from "../data/time";
 import { clockAt } from "./clock";
 import { dexp, pAtLeastOnce } from "./dmath";
@@ -45,6 +46,8 @@ export function signatureAt(
   moving: boolean,
   phase: DayPhase,
   firing = false,
+  modeSignature = 1,
+  dig = 0,
 ): Signature {
   const base = SIGNATURES[typeId];
   const mov = MOVING_MULTIPLIER[ELEMENT_TYPES[typeId].mobility];
@@ -52,7 +55,9 @@ export function signatureAt(
   const conc = TERRAIN[map.terrain[hex] as Terrain].concealment.value;
   const out = { visual: 0, thermal: 0, rf: 0, acoustic: 0 };
   for (const c of CHANNELS) {
-    out[c] = base[c] * (moving ? mov[c] : 1) * (firing ? FIRING_MULTIPLIER[c] : 1) * light[c] * (1 - conc * CONCEALMENT_WEIGHT[c]);
+    const fort = c === "visual" || c === "thermal" ? 1 - DIG_SIGNATURE_REDUCTION.value * dig : 1;
+    out[c] =
+      base[c] * (moving ? mov[c] * modeSignature : 1) * (firing ? FIRING_MULTIPLIER[c] : 1) * light[c] * (1 - conc * CONCEALMENT_WEIGHT[c]) * fort;
   }
   return out;
 }
@@ -150,7 +155,16 @@ export function sensingSystem(state: GameState, ctx: TickContext): void {
     const enemy = enemyOf(side);
     const targets = state.elements.filter((e) => e.side === enemy);
     const sigs = targets.map((t) =>
-      signatureAt(map, t.typeId, t.hex, t.move !== null, phase, ctx.tick - t.firedTick < FIRING_SIGNATURE_TICKS),
+      signatureAt(
+        map,
+        t.typeId,
+        t.hex,
+        t.move !== null,
+        phase,
+        ctx.tick - t.firedTick < FIRING_SIGNATURE_TICKS,
+        t.move ? MOVE_MODE_DEFS[t.move.mode].signature : 1,
+        t.dig,
+      ),
     );
     for (const obs of state.elements) {
       if (obs.side !== side) continue;

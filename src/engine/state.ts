@@ -1,6 +1,7 @@
 import { ELEMENT_TYPES, type ElementTypeId } from "../data/elements";
 import type { TrackQuality } from "../data/sensing";
 import { ELEMENT_WEAPON, WEAPONS, type WeaponId } from "../data/strikes";
+import type { MoveMode } from "../data/movement";
 import { StateHasher } from "./hash";
 import type { HexMap } from "./map";
 import type { Orders } from "./orders";
@@ -22,6 +23,7 @@ export interface Unit {
 }
 
 export interface MoveState {
+  mode: MoveMode;
   /** Hex indices from the start hex to the destination, inclusive. */
   path: number[];
   /** Index into path of the hex the element currently occupies. */
@@ -56,6 +58,12 @@ export interface Element {
   missionsToday: number;
   /** Tick the element entered its current hex (earliest occupant defends). */
   hexSince: number;
+  /** Own field fortification in the current hex, 0..1 (lost on moving). */
+  dig: number;
+  /** 0..1: incoming fire keeps heads down; above the pinned threshold it cannot move or fire. */
+  suppression: number;
+  /** 0..1: will to keep fighting; drops with casualties, recovers when quiet. */
+  cohesion: number;
 }
 
 /** A strike on its way: resolved at impactTick. */
@@ -219,5 +227,8 @@ export function makeElement(id: string, typeId: ElementTypeId, side: SideId, uni
     busyUntil: 0,
     missionsToday: 0,
     hexSince: 0,
+    dig: 0,
+    suppression: 0,
+    cohesion: 1,
   };
 }

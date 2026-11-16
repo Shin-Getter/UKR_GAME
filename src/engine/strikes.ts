@@ -17,7 +17,8 @@ import {
   type WeaponDef,
   WEAPONS,
 } from "../data/strikes";
-import { TERRAIN, type Terrain } from "../data/terrain";
+import { COHESION_LOSS_PER_CASUALTY, PINNED_AT, SUPPRESSION_PER_HIT } from "../data/combat";
+import { effectiveCover } from "./fieldworks";
 import { clockAt } from "./clock";
 import { hexDistance } from "./hex";
 import type { Rng } from "./rng";
@@ -50,6 +51,7 @@ export function strikeAllocationSystem(state: GameState, ctx: TickContext): void
       if (shooter.ammo < weapon.perMission || shooter.busyUntil > tick) continue;
       if (shooter.missionsToday >= weapon.missionsPerDay.value) continue;
       if (weapon.requiresStationary && shooter.move) continue;
+      if (shooter.suppression >= PINNED_AT.value) continue;
       if (rng.float() >= weapon.availability[phase]) continue;
       const from = map.axialOfIndex(shooter.hex);
       const target = tracks.find(
@@ -105,6 +107,7 @@ export function applyCasualties(target: Element, casualties: number, rng: Rng): 
     else target.wounded++;
   }
   target.personnel -= n;
+  target.cohesion = Math.max(0, target.cohesion - n * COHESION_LOSS_PER_CASUALTY.value);
   return n;
 }
 
@@ -141,6 +144,8 @@ export function strikeResolutionSystem(state: GameState, ctx: TickContext): void
   state.strikes = state.strikes.filter((s) => s.impactTick > tick);
   const damage = new Map<string, Damage>();
   const record = (e: Element, d: Damage) => {
+    // Any hit, even without losses, keeps heads down.
+    e.suppression = Math.min(1, e.suppression + SUPPRESSION_PER_HIT.value);
     if (d.casualties === 0 && d.vehiclesLost === 0) return;
     const prev = damage.get(e.id) ?? { casualties: 0, vehiclesLost: 0 };
     damage.set(e.id, { casualties: prev.casualties + d.casualties, vehiclesLost: prev.vehiclesLost + d.vehiclesLost });
@@ -150,7 +155,6 @@ export function strikeResolutionSystem(state: GameState, ctx: TickContext): void
     const weapon: WeaponDef = WEAPONS[strike.weapon];
     if (rng.float() >= weapon.reach.value) continue;
     const baseHit = weapon.hit[strike.quality] ?? 0;
-    const coverAt = (hex: number) => TERRAIN[map.terrain[hex] as Terrain].cover.value;
     if (weapon.kind === "precision") {
       const target = state.elements.find((e) => e.id === strike.targetId);
       if (!target || target.personnel <= 0) continue;
@@ -158,13 +162,13 @@ export function strikeResolutionSystem(state: GameState, ctx: TickContext): void
       // The operator can chase a target that has moved one hex; further away it is lost.
       const chase = d === 0 ? 1 : d === 1 ? 0.5 : 0;
       for (let m = 0; m < weapon.perMission && target.personnel > 0; m++) {
-        if (rng.float() < baseHit * chase * (1 - coverAt(target.hex))) record(target, applyHit(target, weapon, rng));
+        if (rng.float() < baseHit * chase * (1 - effectiveCover(map, target))) record(target, applyHit(target, weapon, rng));
       }
     } else {
       const victims = state.elements.filter((e) => e.side === enemyOf(strike.side) && e.hex === strike.targetHex);
       for (let m = 0; m < weapon.perMission; m++) {
         for (const v of victims) {
-          if (v.personnel > 0 && rng.float() < baseHit * (1 - coverAt(v.hex))) record(v, applyHit(v, weapon, rng));
+          if (v.personnel > 0 && rng.float() < baseHit * (1 - effectiveCover(map, v))) record(v, applyHit(v, weapon, rng));
         }
       }
     }
