@@ -17,6 +17,7 @@ import { Terrain } from "../src/data/terrain";
 import { DIRECTIONS, HEX_FLAT_TO_FLAT_M, HEX_ROW_SPACING_M, hexLine, hexToWorld, worldToHex } from "../src/engine/hex";
 import { HexMap, RoadClass } from "../src/engine/map";
 import { encodeMap, type Place } from "../src/engine/mapio";
+import { transliterate } from "./translit";
 
 interface SectorDef {
   id: string;
@@ -348,7 +349,7 @@ async function importFeatures(): Promise<Place[]> {
       const { q, r } = map.axialOfIndex(i);
       const col = q + (r - (r & 1)) / 2;
       places.push({
-        name: t["name:en"] ?? t["name:uk"] ?? t.name ?? "?",
+        name: t["name:en"] ?? transliterate(t["name:uk"] ?? t.name ?? "?"),
         ...(t["name:uk"] ? { nameUk: t["name:uk"] } : {}),
         kind: t.place as Place["kind"],
         col,

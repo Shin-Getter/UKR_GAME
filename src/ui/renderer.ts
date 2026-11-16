@@ -370,11 +370,21 @@ export class MapRenderer {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.lineJoin = "round";
-    for (const p of this.places) {
+    const rank: Record<Place["kind"], number> = { city: 0, town: 1, village: 2, hamlet: 3 };
+    const order = [...this.places].sort((a, b) => rank[a.kind] - rank[b.kind] || (b.population ?? 0) - (a.population ?? 0));
+    const taken: { x0: number; y0: number; x1: number; y1: number }[] = [];
+    const cw = this.canvas.clientWidth;
+    for (const p of order) {
       if (hexPx < minHexPx[p.kind]) continue;
       const c = hexToWorld(offsetToAxial({ col: p.col, row: p.row }));
-      const [x, y] = toScreen(c.x, c.y);
+      let [x, y] = toScreen(c.x, c.y);
       ctx.font = `${p.kind === "city" || p.kind === "town" ? 700 : 600} ${size[p.kind]}px system-ui, sans-serif`;
+      const half = ctx.measureText(p.name).width / 2 + 3;
+      x = Math.max(half, Math.min(cw - half, x)); // keep edge labels on screen
+      const box = { x0: x - half, x1: x + half, y0: y - size[p.kind] / 2 - 2, y1: y + size[p.kind] / 2 + 2 };
+      // Skip labels that would collide with a more important one already drawn.
+      if (taken.some((t) => box.x0 < t.x1 && box.x1 > t.x0 && box.y0 < t.y1 && box.y1 > t.y0)) continue;
+      taken.push(box);
       ctx.strokeStyle = "rgba(0,0,0,0.8)";
       ctx.lineWidth = 3.5;
       ctx.strokeText(p.name, x, y);
