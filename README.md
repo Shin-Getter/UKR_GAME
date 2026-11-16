@@ -33,7 +33,7 @@ npm run build      # typecheck + production build into dist/
 
 ## How to play (current build)
 
-Choose a **viewpoint**: Ukraine or Russia (fog of war: own units plus sensor contacts) or the debug god view. Click one of your unit markers, right-click a hex to queue a move (drone crews: set the patrol area), then **Run 1 day**. The **coverage** overlay shows where your sensors would locate an enemy within an hour. Games can be downloaded as replay files and loaded back; a replay verifies itself against a state hash.
+Choose a **viewpoint**: Ukraine or Russia (fog of war: own units plus sensor contacts) or the debug god view. Click one of your unit markers, right-click a hex to queue a move (drone crews: set the patrol area), then **Run 1 day**. The **coverage** overlay shows where your sensors would locate an enemy within an hour. Games can be downloaded as replay files and loaded back; a replay verifies itself against a state hash and plays back tick by tick (play/pause, speed, timeline). Bot-vs-bot example replays are in the **Examples** list; make more with `npx tsx scripts/selfplay.ts <scenario> <seed> <days>`.
 
 ## Maps
 

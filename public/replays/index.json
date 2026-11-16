@@ -1,0 +1,26 @@
+[
+ {
+  "file": "pokrovsk-2024-seed1-7d.json",
+  "title": "Pokrovsk approaches, 2024 (real terrain): bot vs bot, seed 1, 7 days",
+  "scenarioId": "pokrovsk-2024",
+  "seed": 1,
+  "days": 7,
+  "summary": "Ukraine 33 casualties, 3 elements lost; Russia 72 casualties, 8 elements lost"
+ },
+ {
+  "file": "pokrovsk-2024-seed2-7d.json",
+  "title": "Pokrovsk approaches, 2024 (real terrain): bot vs bot, seed 2, 7 days",
+  "scenarioId": "pokrovsk-2024",
+  "seed": 2,
+  "days": 7,
+  "summary": "Ukraine 32 casualties, 5 elements lost; Russia 39 casualties, 5 elements lost"
+ },
+ {
+  "file": "test-sector-seed3-7d.json",
+  "title": "Test sector (procedural): bot vs bot, seed 3, 7 days",
+  "scenarioId": "test-sector",
+  "seed": 3,
+  "days": 7,
+  "summary": "Ukraine 33 casualties, 4 elements lost; Russia 60 casualties, 6 elements lost"
+ }
+]

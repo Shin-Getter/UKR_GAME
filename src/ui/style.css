@@ -60,3 +60,8 @@ select { flex: 1; background: var(--bg); color: var(--text); border: 1px solid v
 .events .contact { color: #e8d48a; }
 .events .hit { color: #ff8a80; }
 .losses { margin: 0 0 8px; }
+#replay-slider { width: 100%; margin: 4px 0 8px; accent-color: #2f6fd6; }
+.transport button { padding: 5px 4px; }
+.replay-title { color: var(--text); margin-bottom: 4px; }
+[hidden] { display: none !important; }
+select { min-width: 0; }

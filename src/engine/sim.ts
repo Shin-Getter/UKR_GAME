@@ -68,15 +68,30 @@ function applyOrders(state: GameState, events: SimEvent[]): void {
   }
 }
 
-/** Resolve one orders cycle (24 h). Returns the cycle's events. */
-export function resolveCycle(state: GameState): SimEvent[] {
+/**
+ * Start an orders cycle: record and apply pending orders. Returns the events
+ * of the cycle so far; pass the same array to runTick for each tick, then
+ * call endCycle. resolveCycle does all three.
+ */
+export function beginCycle(state: GameState): SimEvent[] {
   const events: SimEvent[] = [];
   state.history.push({ ua: state.pending.ua, ru: state.pending.ru });
   applyOrders(state, events);
   for (const el of state.elements) el.missionsToday = 0;
-  for (let i = 0; i < TICKS_PER_DAY; i++) runTick(state, events);
+  state.lastEvents = events;
+  return events;
+}
+
+export function endCycle(state: GameState, events: SimEvent[]): void {
   state.cycle++;
   state.pending = { ua: null, ru: null };
   state.lastEvents = events;
+}
+
+/** Resolve one orders cycle (24 h). Returns the cycle's events. */
+export function resolveCycle(state: GameState): SimEvent[] {
+  const events = beginCycle(state);
+  for (let i = 0; i < TICKS_PER_DAY; i++) runTick(state, events);
+  endCycle(state, events);
   return events;
 }

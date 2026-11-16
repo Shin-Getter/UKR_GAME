@@ -10,7 +10,7 @@
     <div id="app">
       <canvas id="map" aria-label="Sector map"></canvas>
       <aside id="panel">
-        <h1>Kill Zone <span class="version">slice 5</span></h1>
+        <h1>Kill Zone <span class="version">slice 5b</span></h1>
         <p class="sub">Pick a viewpoint: a side sees only its own units and its sensor contacts. Click a unit, then right-click a hex to order it (drone crews: set the patrol area). Run a day to resolve.</p>
 
         <section>
@@ -36,18 +36,42 @@
           <h2>Game</h2>
           <div id="clock" class="clock"></div>
           <dl id="losses" class="losses"></dl>
-          <div class="row buttons">
-            <button id="run-day" class="primary">Run 1 day</button>
+          <div id="live-controls">
+            <div class="row buttons">
+              <button id="run-day" class="primary">Run 1 day</button>
+            </div>
+            <div class="row buttons">
+              <button id="move-mode" aria-pressed="false">Tap to order</button>
+              <button id="clear-orders">Clear orders</button>
+            </div>
+            <div id="orders-summary" class="sub"></div>
           </div>
-          <div class="row buttons">
-            <button id="move-mode" aria-pressed="false">Tap to order</button>
-            <button id="clear-orders">Clear orders</button>
+          <div id="replay-controls" hidden>
+            <p class="sub replay-title" id="replay-title"></p>
+            <input id="replay-slider" type="range" min="0" max="0" value="0" step="1" aria-label="Replay position" />
+            <div class="row buttons transport">
+              <button id="rp-start" aria-label="Back to start" title="Back to start">⏮</button>
+              <button id="rp-day-back" aria-label="Back one day" title="Back one day">−1d</button>
+              <button id="rp-tick-back" aria-label="Back 15 minutes" title="Back 15 minutes">−15m</button>
+              <button id="rp-play" class="primary" aria-label="Play">▶</button>
+              <button id="rp-tick-fwd" aria-label="Forward 15 minutes" title="Forward 15 minutes">+15m</button>
+              <button id="rp-day-fwd" aria-label="Forward one day" title="Forward one day">+1d</button>
+            </div>
+            <label class="row">Speed <select id="rp-speed">
+              <option value="2">30 min per second</option>
+              <option value="8" selected>2 h per second</option>
+              <option value="32">8 h per second</option>
+            </select></label>
+            <div class="row buttons">
+              <button id="rp-continue" title="Take over both sides from the end of the replay">Continue playing</button>
+              <button id="rp-exit">Exit replay</button>
+            </div>
           </div>
-          <div id="orders-summary" class="sub"></div>
           <div class="row buttons">
             <button id="save-replay">Download replay</button>
             <label class="file-button">Load replay<input id="load-replay" type="file" accept=".json,application/json" /></label>
           </div>
+          <label class="row">Examples <select id="example-replays"><option value="">Bot-vs-bot replays…</option></select></label>
           <div id="game-msg" class="sub"></div>
         </section>
 

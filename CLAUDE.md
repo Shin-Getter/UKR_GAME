@@ -24,4 +24,6 @@ Read `STATUS.md` first: it says what is done and which slice is next.
 ## Testing
 
 - Every mechanic gets a Vitest test in `tests/`.
+- Gate on exit codes: run `npm run typecheck && npm test && npm run build` without piping test output through filters (a pipe hides failures).
+- Example replays in `public/replays/` must reproduce with the current engine (a test checks). After any change that alters simulation results, regenerate them: `npx tsx scripts/selfplay.ts`.
 - Snapshot tests are golden determinism tripwires: update them (`npx vitest run -u`) only for intentional changes, and say so in the commit.

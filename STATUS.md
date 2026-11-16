@@ -16,6 +16,8 @@ Handoff file between work sessions. Update it at the end of every slice.
 
 - **Slice 5: strikes and ammunition.** Weapons (`src/data/strikes.ts`): FPV, bomber drone, 120 mm mortar, 152/155 mm gun, with range, minimum track quality, latency, cooldown, missions per day, stock, reach, hit chance by track quality, casualties and vehicle-kill chance by protection. Allocation from each side's tracks by default target priority, with overkill and re-shelling limits and no area fire on friendly-occupied hexes (`src/engine/strikes.ts`). Resolution: reach → hit (reduced by terrain cover; precision strikes miss targets that have moved) → effect (killed/wounded, vehicles disabled); elements with no personnel left are removed to `state.destroyed`. Firing raises the shooter's signature for two ticks. Battalion drone company now 2 recon, 3 FPV, 1 bomber crew. Field-crossing calibration micro-test (`tests/fieldCrossing.ts`, probe: `npx tsx scripts/probe-crossing.ts`). UI: losses, ammunition, strength bars, struck/destroyed markers, strike events.
 
+- **Slice 5b: replay viewer and self-play.** `beginCycle`/`runTick`/`endCycle` split; `ReplayPlayer` (`src/engine/replayPlayer.ts`) steps or seeks tick by tick by re-simulating. "Prober" bot (`src/bots/prober.ts`) plays through `observe`/`submit` only. `scripts/selfplay.ts` writes bot-vs-bot replays to `public/replays/` (shipped as examples, listed from `index.json`). UI: replay transport (play/pause, speed, slider, ±15 min, ±1 day), example picker, load replay file, Continue playing from the end.
+
 ## Next
 
 - **Slice 6: movement modes, control and close combat.** Movement modes (column, dash, tactical, infiltration, static/concealed) trading speed for signature; postures (dug in, concealed); pathfinding; per-hex control gradient (held / contested / infiltrated / fire-dominated); assault and consolidation resolution; suppression and cohesion.
@@ -31,6 +33,7 @@ Handoff file between work sessions. Update it at the end of every slice.
 
 - Terrain parameters in `src/data/terrain.ts` are placeholders (confidence: guess).
 - Treelines are hex terrain for now; the design doc wants them as hex-edge features eventually.
+- The prober bot is deliberately naive (sends a couple of infantry elements forward each day). It exists to exercise the interface and make example replays, not to play well.
 - Hot-seat turn handover (hiding one side's screen while the other plans) arrives in slice 7; for now the viewpoint selector is honour-system.
 - No resupply yet: shooters run dry after 3–4 days (logistics comes later). No battle damage assessment: a shooter does not learn what its strike did.
 - First crossing probe (placeholder numbers, 6 h window): squad in the open by day ~6 casualties of 9, along a treeline ~3, open at night ~3.7, assault group along a treeline at night ~0.7; mech section in the open by day loses ~1.8 of 2 vehicles.

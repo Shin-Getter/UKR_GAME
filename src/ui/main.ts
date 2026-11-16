@@ -9,7 +9,9 @@ import { ELEMENT_SENSORS, SENSORS, TrackQuality } from "../data/sensing";
 import { type Axial, axialToOffset } from "../engine/hex";
 import { RoadClass } from "../engine/map";
 import type { Order } from "../engine/orders";
-import { runReplay, toReplay } from "../engine/replay";
+import { type Replay, toReplay } from "../engine/replay";
+import { ReplayPlayer } from "../engine/replayPlayer";
+import { TICKS_PER_DAY } from "../data/time";
 import { resolveCycle } from "../engine/sim";
 import { type GameState, hashState, SIDE_NAMES, SIDES, type SideId } from "../engine/state";
 import { SCENARIO_LIST, SCENARIOS, type ScenarioInfo } from "../scenarios";
@@ -183,6 +185,7 @@ function applyScenarioView(): void {
 }
 
 function newGame(seed: number): void {
+  if (player) stopReplay();
   state = scenario.build(seed);
   drafts = { ua: new Map(), ru: new Map() };
   selectedId = null;
@@ -220,6 +223,10 @@ function showStats(): void {
 
 /** Queue an order for the selected unit at a hex: patrol for drone crews, otherwise move. */
 function issueOrder(hex: Axial, forceMove = false): void {
+  if (player) {
+    message("Replay mode: orders are disabled. Use Continue playing at the end to take over.");
+    return;
+  }
   const sel = selectedId ? state.elements.find((e) => e.id === selectedId && canControl(e.side)) : undefined;
   if (!sel) {
     message("Select one of your units first.");
@@ -323,26 +330,152 @@ $("save-replay").addEventListener("click", () => {
   a.click();
   URL.revokeObjectURL(a.href);
 });
+// --- Replay mode ---------------------------------------------------------
+let player: ReplayPlayer | null = null;
+let playing = false;
+let lastFrame = 0;
+let tickBudget = 0;
+
+function setMode(replay: boolean): void {
+  $("live-controls").hidden = replay;
+  $("replay-controls").hidden = !replay;
+}
+
+function replayRefresh(): void {
+  if (!player) return;
+  state = player.state;
+  const slider = $<HTMLInputElement>("replay-slider");
+  slider.max = String(player.totalTicks);
+  slider.value = String(player.tick);
+  $("rp-play").textContent = playing ? "⏸" : "▶";
+  $("rp-play").setAttribute("aria-label", playing ? "Pause" : "Play");
+  $<HTMLButtonElement>("rp-continue").disabled = !player.atEnd;
+  refresh();
+}
+
+function startReplay(replay: Replay, title: string): void {
+  const p = new ReplayPlayer(replay, SCENARIOS);
+  const ok = p.verify();
+  p.seek(0);
+  player = p;
+  playing = false;
+  scenario = scenarioOf(replay.scenarioId);
+  scenarioSelect.value = scenario.id;
+  seedInput.value = String(replay.seed);
+  state = p.state;
+  drafts = { ua: new Map(), ru: new Map() };
+  selectedId = null;
+  renderer.setMap(state.map);
+  applyScenarioView();
+  renderer.fit(true);
+  $("replay-title").textContent = /\d+ days?/.test(title) ? title : `${title} · ${replay.cycles.length} days`;
+  message(ok ? "Replay verified: playing it through reproduces the recorded final state." : "Warning: this replay does not reproduce its recorded final state (made with a different engine version?).");
+  setMode(true);
+  showStats();
+  replayRefresh();
+}
+
+function stopReplay(): void {
+  player = null;
+  playing = false;
+  setMode(false);
+}
+
+function seek(tick: number): void {
+  if (!player) return;
+  player.seek(tick);
+  if (player.atEnd) playing = false;
+  showStats();
+  replayRefresh();
+}
+
+function frame(now: number): void {
+  requestAnimationFrame(frame);
+  if (!player || !playing) {
+    lastFrame = now;
+    return;
+  }
+  const ticksPerSecond = Number($<HTMLSelectElement>("rp-speed").value);
+  tickBudget += ((now - lastFrame) / 1000) * ticksPerSecond;
+  lastFrame = now;
+  let stepped = false;
+  while (tickBudget >= 1) {
+    tickBudget -= 1;
+    stepped = true;
+    if (!player.step()) {
+      playing = false;
+      showStats();
+      break;
+    }
+  }
+  if (stepped) replayRefresh();
+}
+requestAnimationFrame(frame);
+
+$("rp-play").addEventListener("click", () => {
+  if (!player) return;
+  if (player.atEnd) player.seek(0);
+  playing = !playing;
+  tickBudget = 0;
+  replayRefresh();
+});
+$("rp-start").addEventListener("click", () => seek(0));
+$("rp-tick-back").addEventListener("click", () => seek((player?.tick ?? 0) - 1));
+$("rp-tick-fwd").addEventListener("click", () => seek((player?.tick ?? 0) + 1));
+$("rp-day-back").addEventListener("click", () => seek((player?.tick ?? 0) - TICKS_PER_DAY));
+$("rp-day-fwd").addEventListener("click", () => seek((player?.tick ?? 0) + TICKS_PER_DAY));
+$<HTMLInputElement>("replay-slider").addEventListener("input", (e) => seek(Number((e.target as HTMLInputElement).value)));
+$("rp-exit").addEventListener("click", () => {
+  stopReplay();
+  newGame(Number(seedInput.value) >>> 0);
+});
+$("rp-continue").addEventListener("click", () => {
+  if (!player?.atEnd) return;
+  state = player.state;
+  stopReplay();
+  message(`Continuing from the end of the replay (day ${state.cycle + 1}). You now give orders.`);
+  refresh();
+});
+
 $<HTMLInputElement>("load-replay").addEventListener("change", async (e) => {
   const file = (e.target as HTMLInputElement).files?.[0];
   if (!file) return;
   try {
-    const loaded = runReplay(JSON.parse(await file.text()), SCENARIOS);
-    state = loaded;
-    scenario = scenarioOf(state.scenarioId);
-    scenarioSelect.value = scenario.id;
-    applyScenarioView();
-    drafts = { ua: new Map(), ru: new Map() };
-    selectedId = null;
-    seedInput.value = String(state.seed);
-    renderer.setMap(state.map);
-    showStats();
-    refresh();
-    message(`Replay loaded and verified (day ${state.cycle}).`);
+    startReplay(JSON.parse(await file.text()) as Replay, file.name);
   } catch (err) {
     message(`Could not load replay: ${(err as Error).message}`);
   }
   (e.target as HTMLInputElement).value = "";
+});
+
+interface ReplayIndexEntry {
+  file: string;
+  title: string;
+  summary: string;
+}
+fetch("./replays/index.json")
+  .then((r) => (r.ok ? (r.json() as Promise<ReplayIndexEntry[]>) : []))
+  .then((list) => {
+    const sel = $<HTMLSelectElement>("example-replays");
+    for (const entry of list) {
+      const opt = document.createElement("option");
+      opt.value = entry.file;
+      opt.textContent = entry.title;
+      opt.title = entry.summary;
+      sel.append(opt);
+    }
+  })
+  .catch(() => {});
+$<HTMLSelectElement>("example-replays").addEventListener("change", async (e) => {
+  const sel = e.target as HTMLSelectElement;
+  if (!sel.value) return;
+  try {
+    const res = await fetch(`./replays/${sel.value}`);
+    startReplay((await res.json()) as Replay, sel.selectedOptions[0]?.textContent ?? sel.value);
+  } catch (err) {
+    message(`Could not load example: ${(err as Error).message}`);
+  }
+  sel.value = "";
 });
 
 $("legend").innerHTML =
@@ -381,4 +514,4 @@ $("fit").addEventListener("click", () => renderer.fit(true));
 newGame(initialSeed);
 
 // Console access for experimenting and automated UI checks: window.killzone.state etc.
-Object.assign(window, { killzone: { get state() { return state; }, renderer } });
+Object.assign(window, { killzone: { get state() { return state; }, get player() { return player; }, renderer } });
