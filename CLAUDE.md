@@ -16,6 +16,9 @@ Read `STATUS.md` first: it says what is done and which slice is next.
 - Randomness only through `Rng` (fork named sub-streams per subsystem).
 - Avoid `Math.sin/cos/exp/log/pow` etc. in anything that affects simulation state: they can differ between browser engines and break lockstep play. Use project-provided deterministic versions (add them in `src/engine/` when first needed). Basic arithmetic and `Math.sqrt`/`Math.floor`/`Math.round` are fine.
 - State that must stay in sync lives in typed arrays or plain records that `StateHasher` can hash.
+- New simulation systems are added to `SYSTEMS` in `src/engine/sim.ts`, in the tick order the design doc gives (movement → emissions → sensing → tracks → strike allocation → strike resolution → close combat → engineering/logistics → morale).
+- Per-tick randomness: `ctx.rng("purpose")` inside a system. Never keep RNG objects in state.
+- Players only interact through `observe`/`submit` in `src/engine/controller.ts`; the UI's god view is a debug convenience.
 - Parameters go in `src/data/` with `value`, `unit`, `confidence` (and `source` when known).
 
 ## Testing

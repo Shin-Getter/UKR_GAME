@@ -10,7 +10,11 @@ import {
   worldToHex,
 } from "../engine/hex";
 import { type HexMap, RoadClass } from "../engine/map";
+import type { Element, SideId } from "../engine/state";
+import { ELEMENT_TYPES } from "../data/elements";
 import { RELIEF_BANDS, ROAD_COLOR, shade, TERRAIN_COLOR } from "./palette";
+
+export const SIDE_COLOR: Record<SideId, string> = { ua: "#2f6fd6", ru: "#c8352f" };
 
 export interface ViewOptions {
   grid: boolean;
@@ -36,6 +40,18 @@ export class MapRenderer {
 
   view: ViewOptions = { grid: true, relief: true, roads: true };
   onHover: (hex: Axial | null) => void = () => {};
+  /** Left click without dragging: the element under the cursor (if any) and the hex. */
+  onClick: (elementId: string | null, hex: Axial | null) => void = () => {};
+  /** Right click on a hex (issue an order). */
+  onRightClick: (hex: Axial) => void = () => {};
+
+  /** Forces to draw, the selected element and queued move destinations. */
+  forces: { elements: Element[]; selectedId: string | null; pendingTargets: Map<string, number> } = {
+    elements: [],
+    selectedId: null,
+    pendingTargets: new Map(),
+  };
+  private markerRects: { id: string; x: number; y: number; w: number; h: number }[] = [];
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -104,8 +120,20 @@ export class MapRenderer {
   private attachInput(): void {
     const c = this.canvas;
     let drag: { x: number; y: number } | null = null;
+    let down: { x: number; y: number } | null = null;
+    const local = (e: MouseEvent) => {
+      const rect = c.getBoundingClientRect();
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    };
+    const hexAt = (sx: number, sy: number): Axial | null => {
+      const w = this.screenToWorld(sx, sy);
+      const h = worldToHex(w.x, w.y);
+      return this.map.indexOfAxial(h) >= 0 ? h : null;
+    };
     c.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
       drag = { x: e.clientX, y: e.clientY };
+      down = { x: e.clientX, y: e.clientY };
       c.setPointerCapture(e.pointerId);
       c.classList.add("dragging");
     });
@@ -116,22 +144,30 @@ export class MapRenderer {
         drag = { x: e.clientX, y: e.clientY };
         this.requestDraw();
       }
-      const rect = c.getBoundingClientRect();
-      const w = this.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
-      const h = worldToHex(w.x, w.y);
-      const inside = this.map.indexOfAxial(h) >= 0;
-      const next = inside ? h : null;
+      const p = local(e);
+      const next = hexAt(p.x, p.y);
       if (next?.q !== this.hover?.q || next?.r !== this.hover?.r) {
         this.hover = next;
         this.onHover(next);
         this.requestDraw();
       }
     });
-    const end = () => {
+    const end = (e: PointerEvent) => {
+      if (down && e.type === "pointerup" && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 5) {
+        const p = local(e);
+        this.onClick(this.elementAt(p.x, p.y), hexAt(p.x, p.y));
+      }
       drag = null;
+      down = null;
       c.classList.remove("dragging");
     };
     c.addEventListener("pointerup", end);
+    c.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      const p = local(e);
+      const h = hexAt(p.x, p.y);
+      if (h) this.onRightClick(h);
+    });
     c.addEventListener("pointercancel", end);
     c.addEventListener("pointerleave", () => {
       if (this.hover) {
@@ -292,7 +328,88 @@ export class MapRenderer {
       ctx.stroke();
     }
 
+    this.drawForces(ctx, toScreen);
     this.drawScaleBar(ctx, h);
+  }
+
+  /** Element id under a screen point, topmost first. */
+  elementAt(sx: number, sy: number): string | null {
+    for (let k = this.markerRects.length - 1; k >= 0; k--) {
+      const r = this.markerRects[k]!;
+      if (sx >= r.x && sx <= r.x + r.w && sy >= r.y && sy <= r.y + r.h) return r.id;
+    }
+    return null;
+  }
+
+  private drawForces(ctx: CanvasRenderingContext2D, toScreen: (x: number, y: number) => [number, number]): void {
+    const { elements, selectedId, pendingTargets } = this.forces;
+    this.markerRects = [];
+    if (elements.length === 0) return;
+    const map = this.map;
+    const centre = (i: number) => {
+      const c = hexToWorld(map.axialOfIndex(i));
+      return toScreen(c.x, c.y);
+    };
+    const hexPx = HEX_FLAT_TO_FLAT_M * this.scale;
+    const w = Math.max(9, Math.min(34, hexPx * 0.75));
+    const h = Math.round(w * 0.62);
+
+    // Movement lines: active moves solid-dashed, queued orders lighter.
+    ctx.lineWidth = 2;
+    for (const el of elements) {
+      const colour = SIDE_COLOR[el.side];
+      if (el.move) {
+        ctx.strokeStyle = colour;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        const [x0, y0] = centre(el.hex);
+        ctx.moveTo(x0, y0);
+        for (let k = el.move.step + 1; k < el.move.path.length; k++) {
+          const [x, y] = centre(el.move.path[k]!);
+          ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+      const target = pendingTargets.get(el.id);
+      if (target !== undefined) {
+        ctx.strokeStyle = "#ffd23f";
+        ctx.setLineDash([3, 4]);
+        ctx.beginPath();
+        const [x0, y0] = centre(el.hex);
+        const [x1, y1] = centre(target);
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.arc(x1, y1, Math.max(3, w * 0.2), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+    ctx.setLineDash([]);
+
+    // Markers, stacked when several elements share a hex.
+    const stackIndex = new Map<number, number>();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `600 ${Math.max(8, Math.round(h * 0.55))}px system-ui, sans-serif`;
+    for (const el of elements) {
+      const k = stackIndex.get(el.hex) ?? 0;
+      stackIndex.set(el.hex, k + 1);
+      const [cx, cy] = centre(el.hex);
+      const x = cx - w / 2 + k * 3;
+      const y = cy - h / 2 - k * 3;
+      ctx.fillStyle = SIDE_COLOR[el.side];
+      ctx.fillRect(x, y, w, h);
+      ctx.lineWidth = el.id === selectedId ? 3 : 1.5;
+      ctx.strokeStyle = el.id === selectedId ? "#ffd23f" : "#000000";
+      ctx.strokeRect(x, y, w, h);
+      if (w >= 24) {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(ELEMENT_TYPES[el.typeId].abbr, x + w / 2, y + h / 2 + 1);
+      }
+      this.markerRects.push({ id: el.id, x, y, w, h });
+    }
   }
 
   private drawScaleBar(ctx: CanvasRenderingContext2D, h: number): void {
@@ -315,6 +432,8 @@ export class MapRenderer {
     ctx.stroke();
     ctx.fillStyle = "#ffffff";
     ctx.font = "12px system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
     ctx.fillText(m >= 1000 ? `${m / 1000} km` : `${m} m`, x + px + 8, y);
   }
 }

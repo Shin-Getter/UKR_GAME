@@ -5,16 +5,7 @@
  * confidence rating. All values here are placeholders until calibration
  * (which starts after playtesting).
  */
-
-export type Confidence = "high" | "medium" | "guess";
-
-export interface Param {
-  value: number;
-  unit: string;
-  confidence: Confidence;
-  source?: string;
-  note?: string;
-}
+import { guess, type Param } from "./param";
 
 export enum Terrain {
   Open = 0,
@@ -38,13 +29,6 @@ export interface TerrainDef {
   /** Movement cost multiplier for tracked vehicles; Infinity = impassable. */
   vehicleMoveCost: Param;
 }
-
-const guess = (value: number, unit: string, note?: string): Param => ({
-  value,
-  unit,
-  confidence: "guess",
-  ...(note ? { note } : {}),
-});
 
 export const TERRAIN: Record<Terrain, TerrainDef> = {
   [Terrain.Open]: {

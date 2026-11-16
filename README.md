@@ -27,8 +27,13 @@ npm run build      # typecheck + production build into dist/
 | --- | --- |
 | `src/engine/` | Headless, deterministic simulation engine (no DOM access) |
 | `src/data/` | Parameter files: every value has a unit and a confidence rating |
+| `src/scenarios/` | Scenario builders (forces, placement) by id |
 | `src/ui/` | Browser UI (canvas renderer, panels) |
 | `tests/` | Engine tests (Vitest) |
+
+## How to play (current build)
+
+Debug view, both sides visible: click a unit marker to select it, right-click a hex to queue a move (or toggle **Move mode** and left-click on touch screens), then **Run 1 day**. Games can be downloaded as replay files and loaded back; a replay verifies itself against a state hash.
 
 ## Principles
 

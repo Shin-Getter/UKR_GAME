@@ -37,3 +37,17 @@ dd { margin: 0; font-variant-numeric: tabular-nums; }
   #map { flex: none; height: 60vh; }
   #panel { width: 100%; border-left: none; border-top: 1px solid var(--line); }
 }
+.clock { font-size: 16px; font-weight: 600; margin-bottom: 8px; font-variant-numeric: tabular-nums; }
+button.primary { background: #2f6fd6; border-color: #2f6fd6; font-weight: 600; }
+button.primary:hover { background: #3b7fe8; }
+button[aria-pressed="true"] { background: #6b5a14; border-color: #ffd23f; }
+.file-button { flex: 1; text-align: center; background: #2a2e34; border: 1px solid var(--line); border-radius: 4px; padding: 5px 8px; cursor: pointer; }
+.file-button:hover { border-color: var(--accent); }
+.file-button input { display: none; }
+.events { margin: 0; padding-left: 18px; font-size: 12px; max-height: 220px; overflow-y: auto; }
+.events li { margin-bottom: 2px; }
+.events .ua { color: #8fb6f5; }
+.events .ru { color: #f19a95; }
+.hover.small { min-height: 0; }
+#selected { min-height: 0; }
+#map.move-mode { cursor: crosshair; }
