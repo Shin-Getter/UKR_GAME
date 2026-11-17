@@ -23,7 +23,7 @@ export const SIDE_COLOR: Record<SideId, string> = { ua: "#2f6fd6", ru: "#c8352f"
 const SPOT_COLOR: Record<SideId, string> = { ua: "#9cc3ff", ru: "#ffaaa5" };
 
 export interface Interaction {
-  kind: "strike" | "spot" | "impact" | "melee" | "withdraw";
+  kind: "strike" | "spot" | "impact" | "melee" | "withdraw" | "supply";
   side: SideId;
   to: number;
   from?: number;
@@ -76,6 +76,7 @@ export class MapRenderer {
     destroyed: Element[];
     /** Elements hit during the last day (red outline). */
     struckIds: Set<string>;
+    depots: { side: SideId; hex: number }[];
   } = {
     elements: [],
     selectedId: null,
@@ -86,6 +87,7 @@ export class MapRenderer {
     patrolRadiusHex: 8,
     destroyed: [],
     struckIds: new Set(),
+    depots: [],
   };
   /** Per-hex detection probability overlay (0..1), or null. */
   coverage: Float32Array | null = null;
@@ -512,7 +514,7 @@ export class MapRenderer {
   private drawForces(ctx: CanvasRenderingContext2D, toScreen: (x: number, y: number) => [number, number]): void {
     const { elements, selectedId, pendingTargets } = this.forces;
     this.markerRects = [];
-    if (elements.length === 0 && this.forces.tracks.length === 0 && this.forces.destroyed.length === 0) return;
+    if (elements.length === 0 && this.forces.tracks.length === 0 && this.forces.destroyed.length === 0 && this.forces.depots.length === 0) return;
     const map = this.map;
     const centre = (i: number) => {
       const c = hexToWorld(map.axialOfIndex(i));
@@ -637,6 +639,23 @@ export class MapRenderer {
           ctx.stroke();
         }
       }
+    }
+
+    // Depots: a diamond in the side's colour under any markers.
+    for (const d of this.forces.depots) {
+      const [cx, cy] = centre(d.hex);
+      const r = Math.max(8, w * 0.75);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - r);
+      ctx.lineTo(cx + r, cy);
+      ctx.lineTo(cx, cy + r);
+      ctx.lineTo(cx - r, cy);
+      ctx.closePath();
+      ctx.fillStyle = "#f2f2f2";
+      ctx.fill();
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = SIDE_COLOR[d.side];
+      ctx.stroke();
     }
 
     // Destroyed elements: grey cross at their last position.
@@ -795,6 +814,23 @@ export class MapRenderer {
         }
         ctx.closePath();
         ctx.fill();
+        ctx.stroke();
+      } else if (it.kind === "supply") {
+        const r = Math.min(12, Math.max(6, hexPx * 0.18));
+        const ox = hexPx >= 40 ? hexPx * 0.28 : 0;
+        const oy = hexPx >= 40 ? -hexPx * 0.28 : 0;
+        ctx.fillStyle = "#3ddc84";
+        ctx.strokeStyle = "#06351c";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(x1 + ox, y1 + oy, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x1 + ox - r * 0.55, y1 + oy);
+        ctx.lineTo(x1 + ox + r * 0.55, y1 + oy);
+        ctx.moveTo(x1 + ox, y1 + oy - r * 0.55);
+        ctx.lineTo(x1 + ox, y1 + oy + r * 0.55);
         ctx.stroke();
       } else if (it.kind === "melee") {
         const r = Math.min(Math.max(9, hexPx * 0.55), 60);

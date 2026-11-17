@@ -7,6 +7,7 @@ import { lossSummary } from "../engine/strikes";
 import { controlMap, presenceOf } from "../engine/control";
 import { MOVE_MODE_DEFS, MOVE_MODES, type MoveMode } from "../data/movement";
 import { PINNED_AT } from "../data/combat";
+import { CARRIERS } from "../data/logistics";
 import { Mobility } from "../data/elements";
 import { ELEMENT_WEAPON, WEAPONS } from "../data/strikes";
 import { ELEMENT_SENSORS, SENSORS, TrackQuality } from "../data/sensing";
@@ -116,6 +117,8 @@ function computeInteractions(visibleIds: Set<string>, trackHexes: Set<number>): 
       out.push({ kind: "impact", side: e.side, to: e.hex, alpha });
     } else if (e.kind === "closeCombat") {
       out.push({ kind: "melee", side: e.side, to: e.hex, alpha: replaying ? alpha : 0.6 });
+    } else if (e.kind === "resupplied" && replaying) {
+      out.push({ kind: "supply", side: e.side, from: e.fromHex, to: e.hex, alpha });
     } else if (e.kind === "withdrew") {
       out.push({ kind: "withdraw", side: e.side, from: e.fromHex, to: e.hex, alpha });
     }
@@ -159,6 +162,7 @@ function refresh(): void {
     trackSide: obs ? (viewpoint === "ua" ? "ru" : "ua") : null,
     patrolRadiusHex: SENSORS.reconDrone.rangeHex,
     destroyed: state.destroyed.filter((e) => canControl(e.side)),
+    depots: state.depots.filter((d) => canControl(d.side)),
     struckIds: new Set(state.lastEvents.filter((e) => e.kind === "struck" && canControl(e.side)).map((e) => e.elementId)),
   };
   renderer.control = $<HTMLInputElement>("control").checked
@@ -180,7 +184,14 @@ function refresh(): void {
     .map((side) => {
       const l = lossSummary(state, side);
       const launched = state.lastEvents.filter((e) => e.kind === "strikeLaunched" && e.side === side).length;
-      return `<dt>${SIDE_NAMES[side]}</dt><dd>${l.killed} killed, ${l.wounded} wounded, ${l.vehiclesLost} vehicles, ${l.elementsDestroyed} elements lost · ${launched} strikes last day</dd>`;
+      const own = state.elements.filter((e) => e.side === side);
+      const waiting = own.reduce((n, e) => n + e.waiting, 0);
+      const hungry = own.filter((e) => e.supply === 0).length;
+      const depot = state.depots.find((d) => d.side === side);
+      const supply = depot
+        ? `<br>Depot ${Math.round(depot.stock)} SP (+${depot.deliveryPerDay}/day) · ${depot.evacuated} wounded evacuated, ${waiting} waiting${hungry ? ` · <span class="warn">${hungry} elements out of supply</span>` : ""}`
+        : "";
+      return `<dt>${SIDE_NAMES[side]}</dt><dd>${l.killed} killed, ${l.wounded} wounded, ${l.vehiclesLost} vehicles, ${l.elementsDestroyed} elements lost · ${launched} strikes last day${supply}</dd>`;
     })
     .join("");
   $("orders-summary").textContent = SIDES.filter(canControl)
@@ -223,6 +234,15 @@ function refresh(): void {
       <dt>Dug in</dt><dd>${Math.round(sel.dig * 100)}%</dd>
       <dt>Suppression</dt><dd>${Math.round(sel.suppression * 100)}%${sel.suppression >= PINNED_AT.value ? " (pinned)" : ""}</dd>
       <dt>Cohesion</dt><dd>${Math.round(sel.cohesion * 100)}%</dd>
+      <dt>Sustenance</dt><dd>${sel.supply === 0 ? '<span class="warn">none left</span>' : `${sel.supply.toFixed(1)} days`}</dd>
+      ${sel.waiting > 0 ? `<dt>Wounded</dt><dd>${sel.waiting} waiting for evacuation</dd>` : ""}
+      ${(() => {
+        const c = CARRIERS[sel.typeId];
+        if (!c) return "";
+        const target = sel.haulTarget ? state.elements.find((x) => x.id === sel.haulTarget) : undefined;
+        const job = target ? `taking supply to ${esc(ELEMENT_TYPES[target.typeId].name)} ${target.id}` : sel.move ? "returning to the depot" : "waiting at the depot";
+        return `<dt>Cargo</dt><dd>${Math.round(sel.cargo)} of ${c.capacity} SP${sel.carried ? `, ${sel.carried} wounded aboard` : ""}</dd><dt>Task</dt><dd>${job} (automatic)</dd>`;
+      })()}
       <dt>Status</dt><dd>${status}</dd>
     </dl>
     <div class="modes">${modesFor(sel)
@@ -257,6 +277,7 @@ function refresh(): void {
         if (e.kind === "destroyed") return `<li class="hit">${t} ${who}${esc(name(e.elementId))} destroyed</li>`;
         if (e.kind === "closeCombat") return `<li class="hit">${t} ${who}close combat at ${(() => { const o = axialToOffset(state.map.axialOfIndex(e.hex)); return `${o.col}, ${o.row}`; })()}: ${esc(e.note ?? "")}</li>`;
         if (e.kind === "withdrew") return `<li class="${e.side}">${t} ${who}${esc(name(e.elementId))} pulled back</li>`;
+        if (e.kind === "resupplied") return `<li class="supply">${t} ${who}${esc(name(e.elementId))} resupplied: ${esc(e.note ?? "")}</li>`;
         if (e.kind === "newContact" || e.kind === "lostContact") {
           return `<li class="contact">${t} ${who}${e.kind === "newContact" ? "new contact" : "lost contact"} ${e.elementId}</li>`;
         }
@@ -597,6 +618,7 @@ $("legend").innerHTML =
   `<li><span class="heat"></span>Chance to locate an enemy target per hour</li>` +
   `<li><span class="line" style="background:${SIDE_COLOR.ua}"></span>Strike (arrow; dashed circle = area fire) · dotted = spotted</li>` +
   `<li><span class="ring" style="color:#ff2d2d;border-style:solid"></span>Close combat in this hex</li>` +
+  `<li><span class="depot"></span>Supply depot · green burst = resupply delivered (replays)</li>` +
   `<li><span class="swatch" style="background:rgba(47,111,214,0.45)"></span><span class="swatch" style="background:rgba(200,53,47,0.45)"></span><span class="swatch" style="background:repeating-linear-gradient(45deg,#c8352f 0 3px,#2f6fd6 3px 6px)"></span>Control: held · held · contested</li>` +
   `<li>Badge number = units stacked in a hex (zoom in to spread them, click again to cycle)</li>` +
   `<li>Contacts: dashed ring = suspected · dashed box = detected · solid = identified · corner marks = targetable</li>` +

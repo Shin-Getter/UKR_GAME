@@ -22,9 +22,11 @@ Handoff file between work sessions. Update it at the end of every slice.
 
 - **Slice 6: movement modes, digging in, pathfinding, control, suppression and cohesion.** A* pathfinding (`src/engine/pathfind.ts`) with mode-dependent route choice. Movement modes (`src/data/movement.ts`): tactical, column (fast, visible), dash (2x speed), infiltrate (foot, ≤6 people, 0.25x speed, 0.3x signature, hugs cover). Elements dig in while stationary (8 h foot, 12 h vehicles; lost on moving) for cover and lower signature; scenarios start dug in. Suppression from hits and close combat (pinned elements neither move nor fire) decays each tick; cohesion falls with casualties and recovers when quiet; close combat power scales with both and a side breaks on low power ratio or low cohesion (`src/engine/fieldworks.ts`). Control map (`src/engine/control.ts`): held / contested / none from element presence (side views use located contacts for the enemy). Bot infiltrates with small groups. UI: movement mode picker, dig/suppression/cohesion readout, control overlay. 14-day example replay added.
 
+- **Slice 7: logistics.** Supply points (SP ≈ 10 kg; `src/data/logistics.ts`), a depot per side fed daily from off-map (`state.depots`), sustenance per element (3 days max; cohesion drains at zero and shooters below 20% cohesion stop firing), ammunition resupply by munition cost. Carriers run automatically (`src/engine/logistics.ts`): truck sections serve rear consumers, ground robot teams (new `ugvTeam`, uncrewed: hits destroy robots, team re-equips at the depot after 12 h) serve the infantry; each trip is real movement that can be seen and struck; carriers route around known enemy positions. Wounded wait in their element (slowing cohesion recovery, ~0.4% chance per tick to die) until a carrier takes them back. Pathfinding takes an avoid set and uses a faster, slightly greedy heuristic. UI: depot markers, supply/wounded/cargo readouts, depot and evacuation totals, resupply events and markers.
+
 ## Next
 
-- **Slice 7: orders UI and policies; hot-seat.** Company/battalion-level orders, target-priority rule editor and posture triggers (design doc "Policies, not micromanagement"), hot-seat turn handover screen hiding the other side, first two-player playtest.
+- **Slice 8: orders UI and policies; hot-seat.** Company/battalion-level orders, target-priority rule editor and posture triggers (design doc "Policies, not micromanagement"), logistics policies (night-only runs, priorities), hot-seat turn handover screen hiding the other side, first two-player playtest.
 
 ## Planned slices
 
@@ -38,7 +40,7 @@ Handoff file between work sessions. Update it at the end of every slice.
 - Treelines are hex terrain for now; the design doc wants them as hex-edge features eventually.
 - The prober bot is deliberately naive (sends a couple of infantry elements forward each day). It exists to exercise the interface and make example replays, not to play well.
 - Hot-seat turn handover (hiding one side's screen while the other plans) arrives in slice 7; for now the viewpoint selector is honour-system.
-- No resupply yet: shooters run dry after 3–4 days (logistics comes later). No battle damage assessment: a shooter does not learn what its strike did.
+- Logistics limits: depots cannot be struck; no forward supply points (everything loads at the depot); trucks are not replaced when lost; no rotation of exhausted units; no player control of carriers beyond ordinary move orders (policies come in slice 8). No battle damage assessment: a shooter does not learn what its strike did.
 - Crossing probe after slice 6 (placeholder numbers, 6 h window incl. digging in on arrival): squad open by day ~4.7 casualties of 9, treeline by day ~2.8, open at night ~2.7; assault group treeline at night ~0.65, infiltrating ~0.08; mech section open by day ~1.7 of 2 vehicles lost.
 - "Fire-dominated" ground (no one present but covered by fires) is not yet a control state; consolidation emerges from dig-in reset rather than a separate rule.
 - Sensing has no weather yet, no strike-drone incidental detection, no counter-battery radar, and no posture (dug in / concealed) modifiers; those arrive with strikes (slice 5) and movement modes (slice 6).

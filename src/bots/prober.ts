@@ -1,7 +1,8 @@
 /**
  * "Prober": a deliberately simple scripted bot for self-play and testing.
  * It sees only its side's Observation (plus the public map) and each day:
- *  - points each recon drone at the freshest located contact within reach;
+ *  - points each recon drone at the freshest located contact within reach,
+ *    or sweeps the patrol area around at random when nothing is located;
  *  - sends one or two infantry elements forward towards the enemy (to the
  *    nearest located contact, or a few hexes towards the average contact);
  *    groups of six or fewer infiltrate, larger ones move tactically.
@@ -38,7 +39,18 @@ export function proberOrders(obs: Observation, map: HexMap, seed: number, option
     const target = [...located]
       .filter((t) => hexDistance(ax(e.hex), ax(t.hex)) <= (drone.controlRangeHex ?? 0))
       .sort((a, b) => b.lastSeenTick - a.lastSeenTick || (a.id < b.id ? -1 : 1))[0];
-    if (target && target.hex !== e.patrol) orders.push({ kind: "patrol", elementId: e.id, at: off(target.hex) });
+    if (target) {
+      if (target.hex !== e.patrol) orders.push({ kind: "patrol", elementId: e.id, at: off(target.hex) });
+    } else if (e.patrol !== null) {
+      // Nothing located: sweep. Shift the patrol area a few km at random, staying within control range.
+      const from = off(e.patrol);
+      const at = {
+        col: Math.max(0, Math.min(map.cols - 1, from.col + rng.range(-12, 12))),
+        row: Math.max(0, Math.min(map.rows - 1, from.row + rng.range(-12, 12))),
+      };
+      const d = hexDistance(ax(e.hex), ax(map.index(at.col, at.row)));
+      if (d <= (drone.controlRangeHex ?? 0)) orders.push({ kind: "patrol", elementId: e.id, at });
+    }
   }
 
   // Probes: idle infantry move towards the enemy.
