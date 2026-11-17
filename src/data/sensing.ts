@@ -29,6 +29,7 @@ export const SIGNATURES: Record<ElementTypeId, Signature> = {
   ewTeam: { visual: 0.4, thermal: 0.5, rf: 1.0, acoustic: 0.3 },
   engineerSection: { visual: 0.6, thermal: 0.6, rf: 0.2, acoustic: 0.6 },
   logisticsSection: { visual: 0.8, thermal: 0.8, rf: 0.3, acoustic: 0.7 },
+  ugvTeam: { visual: 0.15, thermal: 0.15, rf: 0.4, acoustic: 0.1 },
   hq: { visual: 0.5, thermal: 0.6, rf: 1.0, acoustic: 0.4 },
 };
 
@@ -155,6 +156,7 @@ export const ELEMENT_SENSORS: Record<ElementTypeId, SensorId[]> = {
   ewTeam: ["eyes", "rfIntercept"],
   engineerSection: ["eyes"],
   logisticsSection: ["eyes"],
+  ugvTeam: ["eyes"],
   hq: ["eyes"],
 };
 

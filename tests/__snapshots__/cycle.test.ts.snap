@@ -1,3 +1,3 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`determinism and replays > matches the golden hash after a scripted week (update deliberately) 1`] = `"f97920b5"`;
+exports[`determinism and replays > matches the golden hash after a scripted week (update deliberately) 1`] = `"2f2e5782"`;

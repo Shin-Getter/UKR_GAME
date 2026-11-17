@@ -18,6 +18,7 @@ import {
 } from "../data/combat";
 import { effectiveCover } from "./fieldworks";
 import { TrackQuality } from "../data/sensing";
+import { ELEMENT_TYPES } from "../data/elements";
 import { TERRAIN, type Terrain } from "../data/terrain";
 import { hexDistance, neighbors } from "./hex";
 import type { Rng } from "./rng";
@@ -81,10 +82,24 @@ export function closeCombatSystem(state: GameState, ctx: TickContext): void {
   const tick = ctx.tick + 1;
   const rng = ctx.rng("melee");
   const byHex = new Map<number, Record<SideId, Element[]>>();
+  const robots: Element[] = [];
   for (const e of state.elements) {
+    // Robots do not fight: their operators are not in the hex.
+    if (ELEMENT_TYPES[e.typeId].uncrewed) {
+      robots.push(e);
+      continue;
+    }
     let g = byHex.get(e.hex);
     if (!g) byHex.set(e.hex, (g = { ua: [], ru: [] }));
     g[e.side].push(e);
+  }
+  // A robot that ends up in a hex with enemy troops loses one machine per tick.
+  for (const r of robots) {
+    const g = byHex.get(r.hex);
+    if (r.vehicles > 0 && g && g[r.side === "ua" ? "ru" : "ua"].length > 0) {
+      r.vehicles--;
+      ctx.emit({ kind: "struck", side: r.side, elementId: r.id, hex: r.hex, note: "0 casualties, 1 vehicle(s) lost" });
+    }
   }
   const contested = [...byHex.entries()].filter(([, g]) => g.ua.length > 0 && g.ru.length > 0).sort((a, b) => a[0] - b[0]);
   if (contested.length === 0) return;

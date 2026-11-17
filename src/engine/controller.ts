@@ -5,7 +5,7 @@
  */
 import { type Clock, clockAt } from "./clock";
 import { type Orders, validateOrders, type ValidationResult } from "./orders";
-import type { Element, GameState, SideId, SimEvent, Track, Unit } from "./state";
+import type { Depot, Element, GameState, SideId, SimEvent, Track, Unit } from "./state";
 
 /** A track as its own side sees it: no link to the real element. */
 export type TrackReport = Omit<Track, "targetId">;
@@ -17,6 +17,7 @@ export interface Observation {
   clock: Clock;
   units: Unit[];
   elements: Element[];
+  depots: Depot[];
   /** Enemy contacts from this side's sensors. */
   tracks: TrackReport[];
   events: SimEvent[];
@@ -30,6 +31,7 @@ export function observe(state: GameState, side: SideId): Observation {
     clock: clockAt(state.tick, state.startHour),
     units: state.units.filter((u) => u.side === side),
     elements: state.elements.filter((e) => e.side === side),
+    depots: state.depots.filter((d) => d.side === side),
     tracks: state.tracks[side].map(({ targetId: _hidden, ...report }) => report),
     events: state.lastEvents.filter((e) => e.side === side),
   });

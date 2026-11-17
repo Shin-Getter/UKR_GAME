@@ -10,8 +10,9 @@ import type { ElementTypeId } from "../data/elements";
 import { Terrain } from "../data/terrain";
 import { axialToOffset } from "../engine/hex";
 import type { HexMap } from "../engine/map";
+import { DEPOT_DELIVERY_SP_PER_DAY, DEPOT_START_SP } from "../data/logistics";
 import type { Rng } from "../engine/rng";
-import { type Echelon, type Element, makeElement, SIDE_NAMES, type SideId, type Unit } from "../engine/state";
+import { type Depot, type Echelon, type Element, makeElement, SIDE_NAMES, type SideId, type Unit } from "../engine/state";
 
 const COVER = new Set([Terrain.Treeline, Terrain.Village, Terrain.Forest, Terrain.Urban]);
 
@@ -27,9 +28,10 @@ export interface FrontLine {
   laneTo: number;
 }
 
-export function buildForces(map: HexMap, front: FrontLine, rng: Rng): { units: Unit[]; elements: Element[] } {
+export function buildForces(map: HexMap, front: FrontLine, rng: Rng): { units: Unit[]; elements: Element[]; depots: Depot[] } {
   const units: Unit[] = [];
   const elements: Element[] = [];
+  const depots: Depot[] = [];
   const counters: Record<SideId, number> = { ua: 0, ru: 0 };
   const lanes = front.line.length;
 
@@ -91,7 +93,16 @@ export function buildForces(map: HexMap, front: FrontLine, rng: Rng): { units: U
     place(side, bn, "mortarSection", f0, f1, 10, 18);
     place(side, bn, "ewTeam", f0, f1, 8, 16);
     place(side, bn, "engineerSection", f0, f1, 16, 28);
-    place(side, bn, "logisticsSection", f0, f1, 36, 52);
+    // Supply: the depot sits with the first truck section; ground robots work forward from it.
+    const truck = place(side, bn, "logisticsSection", f0, f1, 36, 52);
+    depots.push({ side, hex: truck.hex, stock: DEPOT_START_SP.value, deliveryPerDay: DEPOT_DELIVERY_SP_PER_DAY.value, evacuated: 0 });
+    const near = (typeId: ElementTypeId) => {
+      const e = place(side, bn, typeId, f0, f1, 36, 52);
+      e.hex = truck.hex;
+      return e;
+    };
+    near("logisticsSection");
+    for (let k = 0; k < 3; k++) near("ugvTeam");
     const fires = unit(side, `${side}-bde-art`, "Artillery group", "battalion", bde);
     place(side, fires, "gunSection", f0, f1, 44, 64);
     place(side, fires, "gunSection", f0, f1, 44, 64);
@@ -101,5 +112,5 @@ export function buildForces(map: HexMap, front: FrontLine, rng: Rng): { units: U
   }
   // A static front: everyone starts in prepared positions.
   for (const e of elements) e.dig = 1;
-  return { units, elements };
+  return { units, elements, depots };
 }

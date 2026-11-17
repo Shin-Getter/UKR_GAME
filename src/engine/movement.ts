@@ -37,8 +37,14 @@ export function stepCostM(map: HexMap, a: number, b: number, mobility: Mobility)
 }
 
 /** Start a move: find a path from the element's hex to the destination. Returns false if unreachable. */
-export function beginMove(state: GameState, el: Element, destination: number, mode: MoveMode = "tactical"): boolean {
-  const path = findPath(state.map, el.hex, destination, ELEMENT_TYPES[el.typeId].mobility, mode);
+export function beginMove(
+  state: GameState,
+  el: Element,
+  destination: number,
+  mode: MoveMode = "tactical",
+  avoid?: ReadonlySet<number>,
+): boolean {
+  const path = findPath(state.map, el.hex, destination, ELEMENT_TYPES[el.typeId].mobility, mode, avoid);
   el.move = path && path.length > 1 ? { mode, path, step: 0, progressM: 0 } : null;
   return path !== null;
 }

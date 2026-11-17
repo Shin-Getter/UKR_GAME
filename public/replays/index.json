@@ -5,7 +5,7 @@
   "scenarioId": "pokrovsk-2024",
   "seed": 4,
   "days": 14,
-  "summary": "Ukraine 43 casualties, 3 elements lost; Russia 49 casualties, 4 elements lost"
+  "summary": "Ukraine 34 casualties, 4 elements lost; Russia 47 casualties, 7 elements lost"
  },
  {
   "file": "pokrovsk-2024-seed1-7d.json",
@@ -13,7 +13,7 @@
   "scenarioId": "pokrovsk-2024",
   "seed": 1,
   "days": 7,
-  "summary": "Ukraine 31 casualties, 2 elements lost; Russia 49 casualties, 4 elements lost"
+  "summary": "Ukraine 65 casualties, 7 elements lost; Russia 46 casualties, 3 elements lost"
  },
  {
   "file": "pokrovsk-2024-seed2-7d.json",
@@ -21,7 +21,7 @@
   "scenarioId": "pokrovsk-2024",
   "seed": 2,
   "days": 7,
-  "summary": "Ukraine 19 casualties, 3 elements lost; Russia 27 casualties, 2 elements lost"
+  "summary": "Ukraine 30 casualties, 3 elements lost; Russia 59 casualties, 7 elements lost"
  },
  {
   "file": "test-sector-seed3-7d.json",
@@ -29,6 +29,6 @@
   "scenarioId": "test-sector",
   "seed": 3,
   "days": 7,
-  "summary": "Ukraine 47 casualties, 4 elements lost; Russia 54 casualties, 3 elements lost"
+  "summary": "Ukraine 47 casualties, 4 elements lost; Russia 67 casualties, 7 elements lost"
  }
 ]

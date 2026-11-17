@@ -22,6 +22,7 @@ export const PERSON_WEIGHT: Record<ElementTypeId, number> = {
   ewTeam: 0.4,
   engineerSection: 0.6,
   logisticsSection: 0.4,
+  ugvTeam: 0.3,
   hq: 0.4,
 };
 

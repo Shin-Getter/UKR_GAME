@@ -61,11 +61,21 @@ export function routeCost(map: HexMap, a: number, b: number, mobility: Mobility,
 }
 
 /** Cheapest path from start to goal (hex indices, inclusive), or null if unreachable. */
-export function findPath(map: HexMap, start: number, goal: number, mobility: Mobility, mode: MoveMode): number[] | null {
+export function findPath(
+  map: HexMap,
+  start: number,
+  goal: number,
+  mobility: Mobility,
+  mode: MoveMode,
+  /** Hexes the route must not pass through (the goal itself is always allowed). */
+  avoid?: ReadonlySet<number>,
+): number[] | null {
   if (start === goal) return [start];
   const goalAx = map.axialOfIndex(goal);
-  // Admissible heuristic: the cheapest possible step is along a road.
-  const minStep = HEX_FLAT_TO_FLAT_M * Math.min(ROAD_COST[mobility].value, 1);
+  // Heuristic: remaining distance at open-ground cost. Slightly optimistic off
+  // road and pessimistic on it, so routes can be a little longer than the true
+  // optimum, but the search visits far fewer hexes.
+  const minStep = HEX_FLAT_TO_FLAT_M * Math.max(ROAD_COST[mobility].value, 1);
   const g = new Float64Array(map.size).fill(Infinity);
   const from = new Int32Array(map.size).fill(-1);
   const closed = new Uint8Array(map.size);
@@ -79,7 +89,7 @@ export function findPath(map: HexMap, start: number, goal: number, mobility: Mob
     closed[cur] = 1;
     for (const n of neighbors(map.axialOfIndex(cur))) {
       const ni = map.indexOfAxial(n);
-      if (ni < 0 || closed[ni]) continue;
+      if (ni < 0 || closed[ni] || (avoid && ni !== goal && avoid.has(ni))) continue;
       const c = routeCost(map, cur, ni, mobility, mode);
       if (!Number.isFinite(c)) continue;
       const ng = g[cur]! + c;

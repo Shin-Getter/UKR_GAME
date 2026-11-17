@@ -19,6 +19,7 @@ import {
 } from "../data/strikes";
 import { COHESION_LOSS_PER_CASUALTY, PINNED_AT, SUPPRESSION_PER_HIT } from "../data/combat";
 import { effectiveCover } from "./fieldworks";
+import { INEFFECTIVE_COHESION } from "../data/logistics";
 import { clockAt } from "./clock";
 import { hexDistance } from "./hex";
 import type { Rng } from "./rng";
@@ -51,7 +52,7 @@ export function strikeAllocationSystem(state: GameState, ctx: TickContext): void
       if (shooter.ammo < weapon.perMission || shooter.busyUntil > tick) continue;
       if (shooter.missionsToday >= weapon.missionsPerDay.value) continue;
       if (weapon.requiresStationary && shooter.move) continue;
-      if (shooter.suppression >= PINNED_AT.value) continue;
+      if (shooter.suppression >= PINNED_AT.value || shooter.cohesion < INEFFECTIVE_COHESION.value) continue;
       if (rng.float() >= weapon.availability[phase]) continue;
       const from = map.axialOfIndex(shooter.hex);
       const target = tracks.find(
@@ -104,7 +105,10 @@ export function applyCasualties(target: Element, casualties: number, rng: Rng): 
   const n = Math.min(casualties, target.personnel);
   for (let k = 0; k < n; k++) {
     if (rng.float() < KIA_SHARE.value) target.killed++;
-    else target.wounded++;
+    else {
+      target.wounded++;
+      target.waiting++;
+    }
   }
   target.personnel -= n;
   target.cohesion = Math.max(0, target.cohesion - n * COHESION_LOSS_PER_CASUALTY.value);
@@ -115,7 +119,10 @@ function applyHit(target: Element, weapon: WeaponDef, rng: Rng): Damage {
   const type = ELEMENT_TYPES[target.typeId];
   let casualties = 0;
   let vehiclesLost = 0;
-  if (target.vehicles > 0 && type.protection !== "none") {
+  if (type.uncrewed) {
+    // Robots: a hit can only destroy a robot; the operators are not there.
+    if (target.vehicles > 0 && rng.float() < weapon.vehicleKill.none) vehiclesLost = 1;
+  } else if (target.vehicles > 0 && type.protection !== "none") {
     // Protected vehicles: the hit lands on a vehicle; crew casualties only if it is knocked out.
     if (rng.float() < weapon.vehicleKill[type.protection]) {
       vehiclesLost = 1;
@@ -125,12 +132,7 @@ function applyHit(target: Element, weapon: WeaponDef, rng: Rng): Damage {
     if (target.vehicles > 0 && rng.float() < weapon.vehicleKill.none * 0.5) vehiclesLost = 1;
     casualties = rng.range(weapon.casualties[0], weapon.casualties[1]);
   }
-  casualties = Math.min(casualties, target.personnel);
-  for (let k = 0; k < casualties; k++) {
-    if (rng.float() < KIA_SHARE.value) target.killed++;
-    else target.wounded++;
-  }
-  target.personnel -= casualties;
+  casualties = applyCasualties(target, casualties, rng);
   target.vehicles = Math.max(0, target.vehicles - vehiclesLost);
   return { casualties, vehiclesLost };
 }

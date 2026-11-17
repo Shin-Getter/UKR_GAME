@@ -28,11 +28,11 @@ export function buildTestSector(seed: number): GameState {
     riverRow.push(n > 0 ? Math.round(sum / n) : Math.floor(map.rows / 2));
   }
 
-  const { units, elements } = buildForces(
+  const { units, elements, depots } = buildForces(
     map,
     { orientation: "ew", line: riverRow, rear: { ru: -1, ua: 1 }, laneFrom: 0.15, laneTo: 0.85 },
     rng,
   );
 
-  return newGameState({ scenarioId: TEST_SECTOR_ID, seed, map, startHour: 6, units, elements });
+  return newGameState({ scenarioId: TEST_SECTOR_ID, seed, map, startHour: 6, units, elements, depots });
 }

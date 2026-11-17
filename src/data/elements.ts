@@ -36,11 +36,13 @@ export interface ElementType {
   speed: Param;
   /** How well the element's vehicles resist strikes ("none" = people only or soft vehicles). */
   protection: Protection;
+  /** Remotely operated: hits destroy vehicles (robots), not the crew, who work from the rear. */
+  uncrewed?: boolean;
 }
 
 export type Protection = "none" | "light" | "armoured";
 
-const t = (e: ElementType) => e;
+const t = (e: ElementType): ElementType => e;
 
 export const ELEMENT_TYPES = {
   infantrySquad: t({
@@ -90,6 +92,10 @@ export const ELEMENT_TYPES = {
   logisticsSection: t({
     id: "logisticsSection", name: "Logistics section", abbr: "LOG", category: Category.Logistics,
     mobility: Mobility.Wheeled, personnel: 6, vehicles: [{ kind: "truck", count: 3 }], speed: guess(35, "km/h"), protection: "none",
+  }),
+  ugvTeam: t({
+    id: "ugvTeam", name: "Ground robot team", abbr: "UGV", category: Category.Logistics,
+    mobility: Mobility.Wheeled, personnel: 2, vehicles: [{ kind: "ground robot", count: 2 }], speed: guess(6, "km/h"), protection: "none", uncrewed: true,
   }),
   hq: t({
     id: "hq", name: "Command post", abbr: "HQ", category: Category.HQ,

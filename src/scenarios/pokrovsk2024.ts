@@ -48,13 +48,13 @@ export function buildPokrovsk2024(seed: number): GameState {
   const { map } = decodeMap(mapFile as MapFile);
   const rng = new Rng(seed).fork("scenario");
   const line = Array.from({ length: map.rows }, (_, row) => frontColumn(row));
-  const { units, elements } = buildForces(
+  const { units, elements, depots } = buildForces(
     map,
     // Russia attacks from the east (rear towards higher columns), Ukraine defends from the west.
     { orientation: "ns", line, rear: { ru: 1, ua: -1 }, laneFrom: 0.1, laneTo: 0.9 },
     rng,
   );
-  return newGameState({ scenarioId: POKROVSK_2024_ID, seed, map, startHour: 6, units, elements });
+  return newGameState({ scenarioId: POKROVSK_2024_ID, seed, map, startHour: 6, units, elements, depots });
 }
 
 /** The illustrative front as hex indices, for drawing. */

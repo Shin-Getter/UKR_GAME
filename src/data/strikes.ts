@@ -149,6 +149,7 @@ export const DEFAULT_TARGET_PRIORITY: Record<ElementTypeId, number> = {
   ewTeam: 6,
   hq: 6,
   logisticsSection: 5,
+  ugvTeam: 4,
   engineerSection: 4,
   infantrySquad: 3,
   assaultGroup: 3,

@@ -7,6 +7,7 @@
 import { COHESION_RECOVERY_PER_TICK, PINNED_AT, SUPPRESSION_DECAY } from "../data/combat";
 import { ELEMENT_TYPES, Mobility } from "../data/elements";
 import { DIG_COVER, DIG_HOURS_TO_FULL } from "../data/movement";
+import { WAITING_WOUNDED_RECOVERY_PENALTY } from "../data/logistics";
 import { TERRAIN, type Terrain } from "../data/terrain";
 import { TICKS_PER_HOUR } from "../data/time";
 import type { HexMap } from "./map";
@@ -32,6 +33,10 @@ export function moraleSystem(state: GameState, _ctx: TickContext): void {
     const underFire = el.suppression > 0.05;
     el.suppression = el.suppression * SUPPRESSION_DECAY.value;
     if (el.suppression < 0.01) el.suppression = 0;
-    if (!underFire) el.cohesion = Math.min(1, el.cohesion + COHESION_RECOVERY_PER_TICK.value);
+    // No recovery while hungry; slower with wounded still waiting in the position.
+    if (!underFire && el.supply > 0) {
+      const drag = Math.max(0, 1 - WAITING_WOUNDED_RECOVERY_PENALTY.value * el.waiting);
+      el.cohesion = Math.min(1, el.cohesion + COHESION_RECOVERY_PER_TICK.value * drag);
+    }
   }
 }

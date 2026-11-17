@@ -2,6 +2,7 @@ import { ELEMENT_TYPES, type ElementTypeId } from "../data/elements";
 import type { TrackQuality } from "../data/sensing";
 import { ELEMENT_WEAPON, WEAPONS, type WeaponId } from "../data/strikes";
 import type { MoveMode } from "../data/movement";
+import { MAX_SUPPLY_DAYS } from "../data/logistics";
 import { StateHasher } from "./hash";
 import type { HexMap } from "./map";
 import type { Orders } from "./orders";
@@ -64,6 +65,29 @@ export interface Element {
   suppression: number;
   /** 0..1: will to keep fighting; drops with casualties, recovers when quiet. */
   cohesion: number;
+  /** Sustenance held (water, food, batteries), in days. */
+  supply: number;
+  /** Wounded still with the element, waiting for evacuation. */
+  waiting: number;
+  /** Carriers: supply points on board. */
+  cargo: number;
+  /** Carriers: wounded on board, on the way to the rear. */
+  carried: number;
+  /** Carriers: element being resupplied on this trip, or null. */
+  haulTarget: string | null;
+  /** Carriers: no new route search before this tick. */
+  haulRetryTick: number;
+}
+
+/** A side's supply dump, fed from off-map once a day. */
+export interface Depot {
+  side: SideId;
+  hex: number;
+  /** Supply points in stock. */
+  stock: number;
+  deliveryPerDay: number;
+  /** Wounded brought back and passed to the rear. */
+  evacuated: number;
 }
 
 /** A strike on its way: resolved at impactTick. */
@@ -112,7 +136,8 @@ export type SimEventKind =
   | "struck"
   | "destroyed"
   | "closeCombat"
-  | "withdrew";
+  | "withdrew"
+  | "resupplied";
 
 export interface SimEvent {
   tick: number;
@@ -151,6 +176,7 @@ export interface GameState {
   strikeCounter: number;
   /** Elements removed from play (all personnel lost), kept for after-action review. */
   destroyed: Element[];
+  depots: Depot[];
   /** Validated orders waiting for the next cycle. */
   pending: Record<SideId, Orders | null>;
   /** Orders actually resolved each cycle: everything a replay needs. */
@@ -178,6 +204,7 @@ export function hashState(state: GameState): string {
     strikes: state.strikes,
     strikeCounter: state.strikeCounter,
     destroyed: state.destroyed,
+    depots: state.depots,
   });
   return new StateHasher().bytes(new TextEncoder().encode(state.map.hash() + dynamic)).digest();
 }
@@ -190,8 +217,10 @@ export function newGameState(init: {
   startHour: number;
   units: Unit[];
   elements: Element[];
+  depots?: Depot[];
 }): GameState {
   return {
+    depots: [],
     ...init,
     tick: 0,
     cycle: 0,
@@ -230,5 +259,11 @@ export function makeElement(id: string, typeId: ElementTypeId, side: SideId, uni
     dig: 0,
     suppression: 0,
     cohesion: 1,
+    supply: MAX_SUPPLY_DAYS.value,
+    waiting: 0,
+    cargo: 0,
+    carried: 0,
+    haulTarget: null,
+    haulRetryTick: 0,
   };
 }

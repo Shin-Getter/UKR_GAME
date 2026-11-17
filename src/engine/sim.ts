@@ -10,6 +10,8 @@ import { sensingSystem, trackDecaySystem } from "./sensing";
 import { strikeAllocationSystem, strikeResolutionSystem } from "./strikes";
 import { closeCombatSystem } from "./closeCombat";
 import { fieldworksSystem, moraleSystem } from "./fieldworks";
+import { deliverToDepots, logisticsSystem } from "./logistics";
+import { DEPOT_MAX_SP } from "../data/logistics";
 import { validateOrders } from "./orders";
 import { hashString, Rng } from "./rng";
 import { type GameState, SIDES, type SimEvent } from "./state";
@@ -33,6 +35,7 @@ export const SYSTEMS: readonly System[] = [
   { name: "strikeAllocation", run: strikeAllocationSystem },
   { name: "strikeResolution", run: strikeResolutionSystem },
   { name: "closeCombat", run: closeCombatSystem },
+  { name: "logistics", run: logisticsSystem },
   { name: "fieldworks", run: fieldworksSystem },
   { name: "morale", run: moraleSystem },
 ];
@@ -83,6 +86,7 @@ export function beginCycle(state: GameState): SimEvent[] {
   state.history.push({ ua: state.pending.ua, ru: state.pending.ru });
   applyOrders(state, events);
   for (const el of state.elements) el.missionsToday = 0;
+  if (state.cycle > 0) deliverToDepots(state, DEPOT_MAX_SP.value);
   state.lastEvents = events;
   return events;
 }
